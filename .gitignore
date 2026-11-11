@@ -1,0 +1,23 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*secret*
+*credential*
+
+# Local development files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Source materials not required by the website
+/sample video/
+/docs/
+/*.zip
+/*.docx

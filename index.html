@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BlueCourt | 競賽直播與賽程平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="top-header" aria-label="主導覽">
+        <div class="top-left">
+          <button class="menu-button" id="menuToggle" type="button" aria-expanded="false" aria-controls="navDropdown">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div class="brand" aria-label="BlueCourt 品牌">
+            <div class="brand-mark">BC</div>
+            <span>BlueCourt</span>
+          </div>
+        </div>
+
+        <nav class="primary-nav" aria-label="主要頁面導覽">
+          <a href="#home" class="nav-link active">首頁</a>
+          <a href="#live" class="nav-link">直播中</a>
+          <a href="#schedule" class="nav-link">賽程表</a>
+          <a href="#players" class="nav-link">選手</a>
+          <a href="#about" class="nav-link">關於</a>
+        </nav>
+
+        <button class="login-button" id="accountButton" type="button">登入</button>
+      </header>
+
+      <div class="nav-dropdown" id="navDropdown" aria-hidden="true">
+        <div class="dropdown-inner">
+          <div class="dropdown-block">
+            <span class="dropdown-label">探索</span>
+            <a href="#home">首頁</a>
+            <a href="#live">直播中</a>
+            <a href="#schedule">賽程表</a>
+          </div>
+          <div class="dropdown-block">
+            <span class="dropdown-label">賽事</span>
+            <a href="#events">近期賽事</a>
+            <a href="#players">選手排名</a>
+            <a href="#about">平台簡介</a>
+          </div>
+          <div class="dropdown-block">
+            <span class="dropdown-label">管理</span>
+            <a href="#admin">賽事管理</a>
+            <a href="#teams">隊伍面板</a>
+            <a href="#scores">計分中心</a>
+          </div>
+        </div>
+      </div>
+
+      <main class="home-page" id="home">
+        <section class="hero-section">
+          <div class="hero-copy">
+            <p class="eyebrow">競賽直播與賽事平台</p>
+            <h1>發現屬於你的下一場高能對決</h1>
+            <p class="hero-text">
+              關注最新賽事、追蹤選手狀態、看直播、查看賽程表，所有資訊一站收納。
+            </p>
+            <div class="hero-actions">
+              <button class="primary-button" type="button">立即報名</button>
+              <button class="secondary-button" type="button">查看賽程</button>
+            </div>
+          </div>
+
+          <div class="hero-visual" aria-label="競賽直播預覽">
+            <div class="live-pill">LIVE</div>
+            <div class="match-card">
+              <div class="match-topline">
+                <span>冬季盃</span>
+                <span>男子雙打</span>
+              </div>
+              <div class="score-row">
+                <div>
+                  <span>Alpha</span>
+                  <strong>10</strong>
+                </div>
+                <div class="versus">:</div>
+                <div>
+                  <span>Bravo</span>
+                  <strong>8</strong>
+                </div>
+              </div>
+              <div class="match-footer">
+                <span>第 6 場地</span>
+                <span>14:30</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="live-strip" id="live">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">直播中</p>
+              <h2>熱門賽事</h2>
+            </div>
+            <button class="text-button" type="button">查看全部</button>
+          </div>
+
+          <div class="live-grid">
+            <article class="live-card featured">
+              <div class="label-row">
+                <span class="chip live">LIVE</span>
+                <span class="chip neutral">準決賽</span>
+              </div>
+              <h3>男子雙打決戰</h3>
+              <p>Alpha / Bravo 對戰，勝出者晉級最後席位。</p>
+              <div class="meta-row">
+                <span>4.8K 觀看中</span>
+                <span>12 分鐘前</span>
+              </div>
+            </article>
+
+            <article class="live-card">
+              <div class="label-row">
+                <span class="chip live">LIVE</span>
+                <span class="chip neutral">女子單打</span>
+              </div>
+              <h3>城市公開賽</h3>
+              <p>現場比分持續更新，球感與節奏一目了然。</p>
+              <div class="meta-row">
+                <span>2.1K 觀看中</span>
+                <span>7 分鐘前</span>
+              </div>
+            </article>
+
+            <article class="live-card">
+              <div class="label-row">
+                <span class="chip neutral">預告</span>
+                <span class="chip neutral">冠軍賽</span>
+              </div>
+              <h3>週末總決賽</h3>
+              <p>由本週排名前兩名進行最終對決，更多精彩相見。</p>
+              <div class="meta-row">
+                <span>17:30 開始</span>
+                <span>今日</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="schedule-section" id="schedule">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">賽程表</p>
+              <h2>本週安排</h2>
+            </div>
+            <button class="text-button" type="button">全部賽程</button>
+          </div>
+
+          <div class="schedule-layout">
+            <article class="schedule-panel large-panel">
+              <div class="slot-row">
+                <div>
+                  <span class="time-tag">14:00</span>
+                  <h3>男子雙打</h3>
+                </div>
+                <span class="status-pill">準決賽</span>
+              </div>
+              <div class="slot-row detail-row">
+                <span>場地 1</span>
+                <strong>Alpha / Bravo</strong>
+                <span>vs</span>
+                <strong>Charlie / Delta</strong>
+              </div>
+
+              <div class="slot-row">
+                <div>
+                  <span class="time-tag">15:30</span>
+                  <h3>女子單打</h3>
+                </div>
+                <span class="status-pill accent">資格賽</span>
+              </div>
+              <div class="slot-row detail-row">
+                <span>場地 3</span>
+                <strong>Echo</strong>
+                <span>vs</span>
+                <strong>Fox</strong>
+              </div>
+
+              <div class="slot-row">
+                <div>
+                  <span class="time-tag">18:00</span>
+                  <h3>總決賽</h3>
+                </div>
+                <span class="status-pill muted">直播</span>
+              </div>
+              <div class="slot-row detail-row">
+                <span>主場館</span>
+                <strong>冠軍賽</strong>
+                <span>直播中</span>
+              </div>
+            </article>
+
+            <aside class="schedule-panel side-panel">
+              <div class="mini-card">
+                <p class="section-kicker">我的賽程</p>
+                <h3>下一場</h3>
+                <div class="mini-row">
+                  <span>男子雙打</span>
+                  <strong>第 12 場</strong>
+                </div>
+                <div class="mini-row muted">
+                  <span>14:30</span>
+                  <span>場地 6</span>
+                </div>
+              </div>
+
+              <div class="mini-card soft">
+                <p class="section-kicker">報到狀態</p>
+                <h3>42 / 48</h3>
+                <ul>
+                  <li>資料已驗證</li>
+                  <li>隊友已確認</li>
+                  <li>資格覆核已通過</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="showcase-section" id="events">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">近期賽事</p>
+              <h2>探索賽事</h2>
+            </div>
+            <label class="sort-control">
+              <span>排序方式</span>
+              <select id="eventSort" aria-label="賽事排序方式">
+                <option value="recommended">推薦</option>
+                <option value="soonest">即將開始</option>
+                <option value="popular">最多人關注</option>
+                <option value="rating">評價最高</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="event-filters" aria-label="賽事篩選">
+            <label class="event-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="eventSearch" type="search" placeholder="搜尋賽事、組別或地點" />
+            </label>
+            <div class="filter-chips" role="group" aria-label="賽事類型">
+              <button class="filter-chip active" type="button" data-filter="all">全部賽事</button>
+              <button class="filter-chip" type="button" data-filter="live">直播中</button>
+              <button class="filter-chip" type="button" data-filter="upcoming">即將開始</button>
+              <button class="filter-chip" type="button" data-filter="open">報名中</button>
+            </div>
+            <span class="results-count" id="resultsCount">共 3 場賽事</span>
+          </div>
+
+          <div class="showcase-grid" id="eventGrid">
+            <article class="event-card" data-name="菁英雙打挑戰賽 冬季盃 台北" data-status="live" data-rating="4.9" data-popularity="4800" data-start="1" data-recommended="1">
+              <div class="event-image event-one"></div>
+              <div class="event-body">
+                <div class="event-topline">
+                  <span class="chip neutral">冬季盃 · 台北</span>
+                  <span class="rating">★ 4.9</span>
+                </div>
+                <h3>菁英雙打挑戰賽</h3>
+                <p>台北市立體育館 · 8 支隊伍 · 11 月 21–23 日</p>
+                <div class="event-meta"><span class="event-state live-text">● 直播中</span><span>4.8K 人關注</span></div>
+                <div class="event-price"><strong>免費觀賽</strong><span>報名已截止</span></div>
+              </div>
+            </article>
+
+            <article class="event-card" data-name="城市巡迴賽 城市公開賽 新北" data-status="upcoming" data-rating="4.7" data-popularity="2100" data-start="2" data-recommended="2">
+              <div class="event-image event-two"></div>
+              <div class="event-body">
+                <div class="event-topline">
+                  <span class="chip neutral">城市公開賽 · 新北</span>
+                  <span class="rating">★ 4.7</span>
+                </div>
+                <h3>城市巡迴賽</h3>
+                <p>新北運動中心 · 單打、雙打 · 12 月 6–8 日</p>
+                <div class="event-meta"><span class="event-state">◷ 12 月 6 日開始</span><span>2.1K 人關注</span></div>
+                <div class="event-price"><strong>免費觀賽</strong><span>尚有名額</span></div>
+              </div>
+            </article>
+
+            <article class="event-card" data-name="青年選拔賽 新秀賽 台中" data-status="open" data-rating="4.8" data-popularity="1300" data-start="3" data-recommended="3">
+              <div class="event-image event-three"></div>
+              <div class="event-body">
+                <div class="event-topline">
+                  <span class="chip neutral">新秀賽 · 台中</span>
+                  <span class="rating">★ 4.8</span>
+                </div>
+                <h3>青年選拔賽</h3>
+                <p>台中北區運動中心 · 青年組 · 12 月 14–15 日</p>
+                <div class="event-meta"><span class="event-state">報名開放中</span><span>1.3K 人關注</span></div>
+                <div class="event-price"><strong>免費觀賽</strong><span>尚有名額</span></div>
+              </div>
+            </article>
+          </div>
+          <p class="empty-results" id="emptyResults" hidden>找不到符合條件的賽事，試試其他關鍵字或篩選條件。</p>
+        </section>
+
+        <section class="bottom-section" id="players">
+          <div class="player-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">選手</p>
+                <h2>熱門選手</h2>
+              </div>
+            </div>
+
+            <div class="player-list">
+              <div class="player-item">
+                <div class="avatar">CJ</div>
+                <div>
+                  <strong>王立晨</strong>
+                  <p>DUPR 3.8 · 男子雙打</p>
+                </div>
+              </div>
+              <div class="player-item">
+                <div class="avatar alt">LY</div>
+                <div>
+                  <strong>林羽安</strong>
+                  <p>DUPR 3.9 · 女子雙打</p>
+                </div>
+              </div>
+              <div class="player-item">
+                <div class="avatar alt2">TS</div>
+                <div>
+                  <strong>陳天成</strong>
+                  <p>DUPR 4.1 · 男子單打</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-panel" id="about">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">平台</p>
+                <h2>一站式資訊流</h2>
+              </div>
+            </div>
+
+            <ul class="info-list">
+              <li>即時直播與比分同步</li>
+              <li>賽程表與選手資訊總覽</li>
+              <li>報名、資格與報到管理</li>
+              <li>觀眾與工作人員分流體驗</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="loginModal" hidden>
+      <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <button class="modal-close" type="button" data-close-modal aria-label="關閉">×</button>
+        <div class="modal-brand"><div class="brand-mark">BC</div><span>BlueCourt</span></div>
+        <div id="loginView">
+          <p class="section-kicker">歡迎回來</p>
+          <h2 id="loginTitle">登入 BlueCourt</h2>
+          <p class="modal-copy">登入後管理報名、追蹤賽程，並收藏你關注的賽事。</p>
+          <form id="loginForm">
+            <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
+            <label class="form-field">密碼<input type="password" name="password" placeholder="輸入密碼" minlength="4" required /></label>
+            <button class="modal-submit" type="submit">登入</button>
+          </form>
+          <button class="text-button demo-login" id="demoLogin" type="button">使用示範選手帳號登入</button>
+        </div>
+        <div id="profileView" hidden>
+          <p class="section-kicker">個人中心</p>
+          <h2 id="profileTitle">我的 BlueCourt</h2>
+          <div class="profile-identity">
+            <div class="avatar">CJ</div>
+            <div><strong id="profileName">王立晨</strong><p id="profileEmail">player@bluecourt.tw</p></div>
+          </div>
+          <div class="profile-stats">
+            <div><span>已報名賽事</span><strong>2</strong></div>
+            <div><span>已收藏</span><strong>4</strong></div>
+            <div><span>DUPR</span><strong>3.8</strong></div>
+          </div>
+          <div class="profile-links">
+            <a href="#schedule" data-close-modal>我的賽程 <span>›</span></a>
+            <a href="#events" data-close-modal>已收藏賽事 <span>›</span></a>
+            <a href="#players" data-close-modal>選手資料與隊伍 <span>›</span></a>
+          </div>
+          <button class="modal-submit secondary-submit" id="signOut" type="button">登出</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
