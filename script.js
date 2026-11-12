@@ -1,853 +1,853 @@
-const menuToggle = document.getElementById('menuToggle');
-const navDropdown = document.getElementById('navDropdown');
-const navLinks = document.querySelectorAll('.nav-link');
-const eventGrid = document.getElementById('eventGrid');
-const eventSort = document.getElementById('eventSort');
-const eventSearch = document.getElementById('eventSearch');
-const filterButtons = document.querySelectorAll('.filter-chip[data-filter]');
-const resultsCount = document.getElementById('resultsCount');
-const emptyResults = document.getElementById('emptyResults');
-const accountButton = document.getElementById('accountButton');
-const accountMenu = document.getElementById('accountMenu');
-const loginModal = document.getElementById('loginModal');
-const loginView = document.getElementById('loginView');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
-const demoLogin = document.getElementById('demoLogin');
-const roleWorkspace = document.getElementById('roleWorkspace');
-const homePage = document.getElementById('home');
-const brandHome = document.getElementById('brandHome');
-const profilePage = document.getElementById('profilePage');
-const workspaceHeading = document.querySelector('.workspace-heading');
-const registrationPage = document.getElementById('registrationPage');
-const roleChoices = document.querySelectorAll('.role-choice');
-const dashboards = document.querySelectorAll('[data-dashboard]');
-const portalTabs = document.querySelectorAll('[data-portal-tab]');
-const portalPanels = document.querySelectorAll('[data-portal-panel]');
-const roleDetails = {
-  player: { label: '選手中心', description: '登入後查看個人報名狀態、隊伍資訊和下一場賽程。', demoEmail: 'player@bluecourt.tw', name: '王立晨' },
-  staff: { label: '工作人員後台', description: '登入後管理賽事、報名審核、現場報到和裁判計分。', demoEmail: 'staff@bluecourt.tw', name: '賽事管理員' },
-  audience: { label: '觀眾賽況', description: '登入後追蹤關注賽事、即時比分和每日賽程；公開賽況仍可免登入瀏覽。', demoEmail: 'fan@bluecourt.tw', name: '賽事觀眾' },
+'use strict';
+const app = new BlueCourt.CompetitionStore();
+let view = 'home',
+  activeTab = '',
+  activeSubtab = '',
+  activeEvent = '',
+  editingProfile = false;
+let activeGroup = '',
+  activeFilter = 'all',
+  pendingEnrollment = sessionStorage.getItem('bluecourt-enrollment') || '',
+  modalAction = null,
+  modalReturnFocus = null;
+let publicTab = 'live';
+const tabSets = {
+  admin: [
+    ['events', '賽事管理'],
+    ['create', '賽事登錄'],
+    ['users', '使用者管理'],
+    ['profile', '個人資料'],
+  ],
+  manager: [
+    ['overview', '賽事總覽'],
+    ['changes', '賽事更動'],
+    ['review', '報名審核'],
+    ['personnel', '人員管理'],
+    ['profile', '個人資料'],
+  ],
+  referee: [
+    ['scoreboard', '管理報到與分數'],
+    ['profile', '個人資料'],
+  ],
+  player: [
+    ['center', '個人中心'],
+    ['schedule', '我的賽程'],
+    ['entries', '報名與隊伍'],
+    ['profile', '個人資料'],
+  ],
 };
-let activeFilter = 'all';
-let selectedRole = 'player';
-let actionConfirmHandler = null;
-
-if (menuToggle && navDropdown) {
-  menuToggle.addEventListener('click', () => {
-    const isOpen = navDropdown.classList.toggle('open');
-    menuToggle.setAttribute('aria-expanded', String(isOpen));
-    navDropdown.setAttribute('aria-hidden', String(!isOpen));
-  });
+function notice(message, error = false) {
+  $('appNotice').textContent = message;
+  $('appNotice').classList.toggle('error', error);
+  $('appNotice').hidden = false;
 }
-
-navLinks.forEach((link) => {
-  link.addEventListener('click', (event) => {
-    event.preventDefault();
-    navLinks.forEach((item) => item.classList.toggle('active', item === link));
-    navigateToSection(link.getAttribute('href').slice(1));
-    navDropdown?.classList.remove('open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-    navDropdown?.setAttribute('aria-hidden', 'true');
-  });
-});
-
-document.addEventListener('click', (event) => {
-  const link = event.target.closest('.nav-dropdown a[href^="#"]:not([data-open-role])');
-  if (!link) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  navigateToSection(link.getAttribute('href').slice(1));
-  navDropdown?.classList.remove('open');
-  menuToggle?.setAttribute('aria-expanded', 'false');
-  navDropdown?.setAttribute('aria-hidden', 'true');
-}, true);
-
-document.querySelectorAll('[data-action="register"]').forEach((button) => {
-  button.addEventListener('click', () => openRegistration('player'));
-});
-
-document.querySelectorAll('[data-action="schedule"]').forEach((button) => {
-  button.addEventListener('click', () => navigateToSection('schedule'));
-});
-
-document.querySelectorAll('[data-public-tab]').forEach((button) => {
-  button.addEventListener('click', () => showPublicPanel(button.dataset.publicTab ?? 'audience-live'));
-});
-
-document.querySelectorAll('[data-live-detail]').forEach((button) => {
-  button.addEventListener('click', () => openLiveDetails(button.dataset.liveDetail ?? ''));
-});
-
-document.querySelectorAll('[data-event-detail]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const card = button.closest('.event-card');
-    if (card) openEventDetails(card);
-  });
-});
-
-document.querySelectorAll('[data-open-role]').forEach((link) => {
-  link.addEventListener('click', (event) => {
-    event.preventDefault();
-    selectedRole = link.dataset.openRole ?? 'staff';
-    const roleChoice = document.querySelector(`[data-login-role="${selectedRole}"]`);
-    roleChoice?.click();
-    if (loginView) loginView.hidden = false;
-    if (loginModal) loginModal.hidden = false;
-    document.body.classList.add('modal-open');
-  });
-});
-
-function updateEvents() {
-  if (!eventGrid) return;
-
-  const query = eventSearch?.value.trim().toLocaleLowerCase() ?? '';
-  const cards = [...eventGrid.querySelectorAll('.event-card')];
-  const visibleCards = cards.filter((card) => {
-    const matchesText = card.dataset.name?.toLocaleLowerCase().includes(query) ?? false;
-    const matchesFilter = activeFilter === 'all' || card.dataset.status === activeFilter;
-    card.hidden = !matchesText || !matchesFilter;
-    return !card.hidden;
-  });
-
-  const sortBy = eventSort?.value ?? 'recommended';
-  const sortValue = {
-    recommended: (card) => Number(card.dataset.recommended),
-    soonest: (card) => Number(card.dataset.start),
-    popular: (card) => Number(card.dataset.popularity) * -1,
-    rating: (card) => Number(card.dataset.rating) * -1,
-  }[sortBy];
-
-  visibleCards.sort((first, second) => sortValue(first) - sortValue(second));
-  visibleCards.forEach((card) => eventGrid.append(card));
-  if (resultsCount) resultsCount.textContent = `共 ${visibleCards.length} 場賽事`;
-  if (emptyResults) emptyResults.hidden = visibleCards.length > 0;
+function handleError(error) {
+  notice(error.message || '操作失敗，請再試一次。', true);
 }
-
-eventSort?.addEventListener('change', updateEvents);
-eventSearch?.addEventListener('input', updateEvents);
-filterButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    activeFilter = button.dataset.filter ?? 'all';
-    filterButtons.forEach((item) => item.classList.toggle('active', item === button));
-    updateEvents();
-  });
-});
-
-function showPortalPanel(panelId) {
-  portalTabs.forEach((tab) => {
-    const active = tab.dataset.portalTab === panelId;
-    tab.classList.toggle('active', active);
-    tab.setAttribute('aria-selected', String(active));
-  });
-  portalPanels.forEach((panel) => {
-    const active = panel.dataset.portalPanel === panelId;
-    panel.classList.toggle('active', active);
-    panel.hidden = !active;
-  });
+function closeNavigation() {
+  $('navDropdown').classList.remove('open');
+  $('navDropdown').setAttribute('aria-hidden', 'true');
+  $('menuToggle').setAttribute('aria-expanded', 'false');
+  $('accountMenu').hidden = true;
+  $('accountButton').setAttribute('aria-expanded', 'false');
 }
-
-function showActionModal({ title, description, primaryLabel = '', onConfirm = null, buildBody = null }) {
-  const modal = document.getElementById('actionModal');
-  const titleElement = document.getElementById('actionModalTitle');
-  const body = document.getElementById('actionModalBody');
-  const primary = document.getElementById('actionModalPrimary');
-  if (!modal || !titleElement || !body || !primary) return;
-
-  titleElement.textContent = title;
-  body.replaceChildren();
-  const paragraph = document.createElement('p');
-  paragraph.textContent = description;
-  body.append(paragraph);
-  buildBody?.(body);
-  primary.textContent = primaryLabel;
-  primary.hidden = !primaryLabel;
-  actionConfirmHandler = onConfirm;
-  modal.hidden = false;
+function setView(next, scroll = true) {
+  view = next;
+  $('appNotice').hidden = true;
+  $('home').hidden = view !== 'home';
+  $('roleWorkspace').hidden = !['workspace', 'public'].includes(view);
+  $('registrationPage').hidden = view !== 'register';
+  $('enrollmentPage').hidden = view !== 'enrollment';
+  document.body.classList.toggle('is-authenticated', view === 'workspace' && !!app.current());
+  closeNavigation();
+  history.replaceState(null, '', location.pathname + location.search);
+  if (scroll) window.scrollTo({ top: 0, behavior: 'auto' });
+}
+function renderAccount() {
+  const user = app.current(),
+    role = app.role();
+  const account = $('accountButton');
+  if (!user) {
+    account.textContent = '登入';
+    account.classList.remove('is-signed-in');
+    return;
+  }
+  account.innerHTML = `<span class="account-button-content"><span>${h(user.name)}</span><span class="account-caret">▾</span></span>`;
+  account.classList.add('is-signed-in');
+  $('accountMenuName').textContent = user.name;
+  $('accountMenuAvatar').textContent = user.name.slice(0, 2);
+  $('accountMenuRole').textContent = BlueCourt.labels[role];
+}
+function showWorkspace() {
+  if (!app.current()) return openLogin();
+  activeTab = tabSets[app.role()][0][0];
+  activeSubtab = '';
+  editingProfile = false;
+  setView('workspace');
+  renderWorkspace();
+}
+function renderWorkspace() {
+  const user = app.current();
+  if (!user) {
+    setView('home');
+    return;
+  }
+  const role = app.role(),
+    tabs = tabSets[role];
+  if (!tabs.some(([key]) => key === activeTab)) activeTab = tabs[0][0];
+  $('workspaceRoleLabel').textContent = BlueCourt.labels[role];
+  $('workspaceTitle').textContent = '你好，' + user.name;
+  const managed = app.managedEvents();
+  if (!managed.some((e) => e.id === activeEvent)) activeEvent = managed[0]?.id || '';
+  const needPicker =
+    (role === 'manager' && activeTab !== 'profile') || (role === 'admin' && activeTab === 'events');
+  let content = '';
+  if (activeTab === 'profile') content = profileView();
+  else if (role === 'player')
+    content = (
+      { center: playerCenter, schedule: playerSchedule, entries: playerEntries }[activeTab] ||
+      playerCenter
+    )();
+  else if (role === 'referee') content = refereeBoard();
+  else if (role === 'manager') {
+    if (!managed.length) content = empty('目前沒有負責的賽事。');
+    else {
+      const e = app.event(activeEvent);
+      content = (
+        { overview: eventSummary, changes: matchChanges, review: registrationList, personnel }[
+          activeTab
+        ] || eventSummary
+      )(e);
+    }
+  } else if (role === 'admin') {
+    if (activeTab === 'create') content = adminEventForm();
+    if (activeTab === 'users') {
+      if (!['accounts', 'assignments'].includes(activeSubtab)) activeSubtab = 'accounts';
+      content = subnav([
+        ['accounts', '帳號與系統權限'],
+        ['assignments', '賽事管理員與裁判指派'],
+      ]);
+      content +=
+        activeSubtab === 'accounts'
+          ? adminUsers()
+          : managed.length
+            ? eventPicker(managed) + adminAssignments()
+            : empty('請先登錄賽事。');
+    }
+    if (activeTab === 'events') {
+      if (!['summary', 'changes', 'review', 'personnel', 'audit'].includes(activeSubtab))
+        activeSubtab = 'summary';
+      content = subnav([
+        ['summary', '全部賽事總覽'],
+        ['changes', '賽事更動'],
+        ['review', '報名審核'],
+        ['personnel', '人員管理'],
+        ['audit', '操作紀錄'],
+      ]);
+      if (managed.length) {
+        const e = app.event(activeEvent);
+        content +=
+          activeSubtab === 'audit'
+            ? heading('賽事操作紀錄', e.name) + auditList(e.id)
+            : { summary: eventSummary, changes: matchChanges, review: registrationList, personnel }[
+                activeSubtab
+              ](e);
+      } else content += empty('尚無賽事，請先至賽事登錄建立。');
+    }
+  }
+  $('workspaceContent').innerHTML =
+    `<nav class="workspace-tabs" aria-label="${h(BlueCourt.labels[role])}功能">${tabs
+      .map(
+        ([key, label]) =>
+          `<button type="button" class="workspace-tab ${activeTab === key ? 'active' : ''}" data-command="tab" data-tab="${key}" aria-current="${activeTab === key ? 'page' : 'false'}">${label}</button>`,
+      )
+      .join('')}</nav>
+    ${needPicker && managed.length ? '<div class="event-picker-row">' + eventPicker(managed) + '</div>' : ''}<section class="workspace-panel active" id="currentPanel">${content}</section>`;
+}
+function subnav(items) {
+  return `<nav class="workspace-subnav" aria-label="細項功能">${items.map(([key, label]) => button(label, 'subtab', `data-tab="${key}" aria-pressed="${key === activeSubtab}"`)).join('')}</nav>`;
+}
+function renderHome() {
+  const today = BlueCourtDemo.todayDate(),
+    query = $('eventSearch').value.trim().toLowerCase(),
+    sort = $('eventSort').value;
+  let events = app.db.events.filter((e) => {
+    const phase = BlueCourtDemo.eventPhase(e, app.db.matches);
+    return (
+      [e.name, e.location, e.sport, ...e.groups].join(' ').toLowerCase().includes(query) &&
+      (activeFilter === 'all' ||
+        (activeFilter === 'open' && phase.canEnroll) ||
+        activeFilter === phase.key)
+    );
+  });
+  if (sort === 'soonest') events.sort((a, b) => a.date.localeCompare(b.date));
+  if (sort === 'popular') events.sort((a, b) => entryCount(b.id) - entryCount(a.id));
+  $('eventGrid').innerHTML = events
+    .map((e, i) => {
+      const phase = BlueCourtDemo.eventPhase(e, app.db.matches);
+      return `<article class="event-card" data-event-card="${h(e.id)}"><div class="event-image event-${['one', 'two', 'three'][i % 3]}"></div><div class="event-body">
+      <div class="event-topline"><span class="chip neutral">${h(e.sport)}</span><span class="event-phase phase-${phase.key}">${h(phase.label)}</span></div>
+      <h3>${h(e.name)}</h3><p>${h(e.date)} · ${h(e.location)}</p><p>${h(e.groups.join('、'))} · ${e.courts} 個場地</p>
+      <div class="event-meta"><span>${phase.canEnroll ? '報名中 · 截止 ' + h(e.deadline) : '報名已截止'}</span><span>${entryCount(e.id)} / ${e.capacity} 隊</span></div>
+      <div class="inline-actions">${button('賽事資訊', 'event-detail', `data-event="${h(e.id)}"`, 'text-button')}
+      ${phase.canEnroll ? button('立即報名', 'enroll', `data-event="${h(e.id)}"`, 'primary-button') : phase.key === 'live' ? button('查看賽況', 'today-live', '', 'primary-button') : ''}</div></div></article>`;
+    })
+    .join('');
+  $('resultsCount').textContent = '共 ' + events.length + ' 場賽事';
+  $('emptyResults').hidden = !!events.length;
+  const todayMatches = app.db.matches.filter((m) => m.date === today);
+  const liveMatches = todayMatches.filter((m) => m.status === 'started');
+  const liveEvents = [...new Set(liveMatches.map((m) => m.eventId))].map((eid) => app.event(eid));
+  $('liveDate').textContent = today + ' · 台灣時間';
+  $('heroScore').innerHTML = liveEvents.length
+    ? livePreview(liveEvents[0])
+    : empty('今日目前沒有進行中的比賽。');
+  $('liveMatchList').innerHTML = liveEvents
+    .slice(1)
+    .map((e) => livePreview(e))
+    .join('');
+  $('homeScheduleList').innerHTML =
+    app.db.matches
+      .slice()
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+      .slice(0, 6)
+      .map((m) => matchCard(m))
+      .join('') || empty('目前尚無賽程。');
+}
+function registrationAvailable(e) {
+  return e.registrationOpen && e.deadline >= BlueCourtDemo.todayDate();
+}
+function entryCount(eid) {
+  return app.db.entries.filter((r) => r.eventId === eid).length;
+}
+function renderPublic() {
+  const live = publicTab === 'live';
+  $('workspaceRoleLabel').textContent = live
+    ? '今日即時賽況 · ' + BlueCourtDemo.todayDate()
+    : '公開賽程';
+  $('workspaceTitle').textContent = live ? '當日賽事' : '完整賽程';
+  const matches = app.db.matches
+    .filter((m) => !live || m.date === BlueCourtDemo.todayDate())
+    .slice()
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  $('workspaceContent').innerHTML =
+    heading(live ? '當日賽事資訊' : '所有賽程') +
+    '<div class="inline-actions">' +
+    button('當日賽況', 'today-live') +
+    button('完整賽程', 'all-schedule') +
+    button('返回賽事資訊', 'home-events') +
+    '</div>' +
+    (matches.map((m) => matchCard(m)).join('') ||
+      empty(live ? '今日沒有比賽。' : '目前尚無場次。'));
+}
+function refresh() {
+  renderAccount();
+  renderHome();
+  if (view === 'workspace') renderWorkspace();
+  if (view === 'public') renderPublic();
+  if (view === 'enrollment') renderEnrollment();
+}
+function modal({ title, description, body = '', primary = '', action = null }) {
+  modalReturnFocus = document.activeElement;
+  $('actionModalTitle').textContent = title;
+  $('actionModalBody').innerHTML = `<p>${h(description)}</p>${body}`;
+  $('actionModalPrimary').textContent = primary;
+  $('actionModalPrimary').hidden = !primary;
+  modalAction = action;
+  $('actionModal').hidden = false;
   document.body.classList.add('modal-open');
+  $('actionModal').querySelector('input, select, button').focus();
 }
-
-function closeActionModal() {
-  const modal = document.getElementById('actionModal');
-  if (modal) modal.hidden = true;
+function closeModal() {
+  $('actionModal').hidden = true;
+  modalAction = null;
   document.body.classList.remove('modal-open');
-  actionConfirmHandler = null;
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
 }
-
-function navigateToSection(sectionId) {
-  if (!document.getElementById(sectionId)) return;
-  if (homePage) homePage.hidden = false;
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = true;
-  history.replaceState(null, '', `${location.pathname}${location.search}`);
-  window.setTimeout(() => { location.hash = sectionId; }, 0);
-}
-
-function openRegistration(role = 'player') {
-  selectedRole = role in roleDetails ? role : 'player';
-  const registrationRole = document.getElementById('registrationRole');
-  if (registrationRole) registrationRole.value = selectedRole;
-  if (homePage) homePage.hidden = true;
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = false;
-  if (loginModal) loginModal.hidden = true;
+function closeLogin() {
+  $('loginModal').hidden = true;
   document.body.classList.remove('modal-open');
 }
-
-function showPublicPanel(panelId) {
-  if (homePage) homePage.hidden = true;
-  if (roleWorkspace) roleWorkspace.hidden = false;
-  if (profilePage) profilePage.hidden = true;
-  if (workspaceHeading) workspaceHeading.hidden = false;
-  dashboards.forEach((dashboard) => { dashboard.hidden = dashboard.id !== 'audienceDashboard'; });
-  const roleLabel = document.getElementById('workspaceRoleLabel');
-  const workspaceTitle = document.getElementById('workspaceTitle');
-  if (roleLabel) roleLabel.textContent = '公開資訊';
-  if (workspaceTitle) workspaceTitle.textContent = '賽事即時資訊';
-  showPortalPanel(panelId);
-}
-
-function openLiveDetails(matchKey) {
-  const matchContent = {
-    'men-doubles': ['男子雙打準決賽', '第 6 場地 · Alpha / Bravo 10 : 8 Charlie / Delta。直播串流尚未串接，公開比分與賽程可直接查看。'],
-    'women-singles': ['城市公開賽女子單打', '第 3 場地正在進行中，比分資訊以公開賽況頁為準。直播串流尚未串接。'],
-    final: ['週末總決賽', '今日 17:30 開始，冠軍賽預計提供直播入口。'],
-  }[matchKey] ?? ['公開賽況', '查看目前賽事比分與場次資訊。'];
-  showActionModal({
-    title: matchContent[0],
-    description: matchContent[1],
-    primaryLabel: '前往即時賽況',
-    onConfirm: () => { closeActionModal(); showPublicPanel('audience-live'); },
-  });
-}
-
-function openEventDetails(card) {
-  const eventName = card.querySelector('h3')?.textContent?.trim() ?? '賽事資訊';
-  const eventInfo = card.querySelector('.event-body > p')?.textContent?.trim() ?? '';
-  const status = card.dataset.status;
-  const followedEvents = JSON.parse(localStorage.getItem('bluecourt-followed-events') ?? '[]');
-  const isFollowed = followedEvents.includes(eventName);
-  showActionModal({
-    title: eventName,
-    description: `${eventInfo}。${status === 'live' ? '賽事進行中，可查看公開比分。' : status === 'open' ? '目前開放報名。' : '賽事即將開始。'}`,
-    primaryLabel: status === 'open' ? '立即報名' : isFollowed ? '取消追蹤' : '追蹤賽事',
-    onConfirm: () => {
-      if (status === 'open') {
-        closeActionModal();
-        openRegistration('player');
-        return;
-      }
-      const current = JSON.parse(localStorage.getItem('bluecourt-followed-events') ?? '[]');
-      const next = current.includes(eventName) ? current.filter((name) => name !== eventName) : [...current, eventName];
-      localStorage.setItem('bluecourt-followed-events', JSON.stringify(next));
-      closeActionModal();
-    },
-  });
-}
-
-function readLocalList(key) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) ?? '[]');
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
-function renderCreatedEvents() {
-  const list = document.getElementById('createdEventList');
-  const counter = document.getElementById('createdEventCount');
-  if (!list || !counter) return;
-  const events = readLocalList('bluecourt-managed-events');
-  list.replaceChildren();
-  counter.textContent = `${events.length} 場`;
-  if (!events.length) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = '尚未建立賽事。';
-    list.append(empty);
-    return;
-  }
-
-  events.forEach((event) => {
-    const row = document.createElement('div');
-    row.className = 'created-event-row';
-    row.dataset.eventId = event.id;
-    const name = document.createElement('strong');
-    name.textContent = event.name;
-    const venue = document.createElement('span');
-    venue.textContent = `${event.location} · ${event.courts} 面場地`;
-    const groups = document.createElement('span');
-    groups.textContent = event.groups.join('、');
-    const remove = document.createElement('button');
-    remove.className = 'remove-generated-item';
-    remove.type = 'button';
-    remove.dataset.removeEvent = event.id;
-    remove.textContent = '移除';
-    row.append(name, venue, groups, remove);
-    list.append(row);
-  });
-
-  const eventSelect = document.querySelector('#staffScheduleForm select[name="event"]');
-  if (eventSelect) {
-    const selected = eventSelect.value;
-    eventSelect.replaceChildren(new Option('冬季盃', '冬季盃'));
-    events.forEach((event) => {
-      const option = new Option(event.name, event.name);
-      option.dataset.date = event.date;
-      option.dataset.courts = String(event.courts);
-      eventSelect.add(option);
-    });
-    if ([...eventSelect.options].some((option) => option.value === selected)) eventSelect.value = selected;
-  }
-}
-
-function renderGeneratedSchedule() {
-  const list = document.getElementById('generatedScheduleList');
-  const counter = document.getElementById('generatedMatchCount');
-  if (!list || !counter) return;
-  const matches = readLocalList('bluecourt-managed-schedule');
-  list.replaceChildren();
-  counter.textContent = `${matches.length} 場`;
-  if (!matches.length) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = '填入隊伍並產生賽程。';
-    list.append(empty);
-    return;
-  }
-
-  matches.forEach((match) => {
-    const row = document.createElement('div');
-    row.className = 'generated-match-row';
-    row.dataset.matchId = match.id;
-    const time = document.createElement('span');
-    time.textContent = `${match.date} · ${match.time}`;
-    const teams = document.createElement('strong');
-    teams.textContent = `${match.teamA} vs ${match.teamB}`;
-    const meta = document.createElement('span');
-    meta.textContent = `${match.event} · ${match.group} · 第 ${match.court} 場地`;
-    const remove = document.createElement('button');
-    remove.className = 'remove-generated-item';
-    remove.type = 'button';
-    remove.dataset.removeMatch = match.id;
-    remove.textContent = '移除';
-    row.append(time, teams, meta, remove);
-    list.append(row);
-  });
-}
-
-function setSignedIn(email = roleDetails[selectedRole].demoEmail, role = selectedRole, requestedName = '') {
-  selectedRole = role in roleDetails ? role : 'player';
-  const details = roleDetails[selectedRole];
-  const savedAccount = getSavedAccount();
-  const savedName = savedAccount?.email === email ? savedAccount.displayName : '';
-  const preferredName = requestedName || savedName || '';
-  const accountName = preferredName && !/^\d+$/.test(preferredName) && preferredName !== email.split('@')[0]
-    ? preferredName
-    : details.name;
-  const avatar = savedAccount?.email === email && savedAccount.photo
-    ? savedAccount.photo
-    : 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&h=240&q=85';
-  const activeDashboard = document.getElementById(`${selectedRole}Dashboard`);
-  dashboards.forEach((dashboard) => { dashboard.hidden = dashboard !== activeDashboard; });
-  if (profilePage) profilePage.hidden = true;
-  if (workspaceHeading) workspaceHeading.hidden = false;
-  if (homePage) homePage.hidden = true;
-  if (roleWorkspace) roleWorkspace.hidden = false;
-  if (registrationPage) registrationPage.hidden = true;
-  if (loginView) loginView.hidden = true;
-  if (loginForm) loginForm.hidden = false;
-  if (loginModal) loginModal.hidden = true;
-  if (accountMenu) accountMenu.hidden = true;
-  if (accountButton) accountButton.setAttribute('aria-expanded', 'false');
-  document.body.classList.remove('modal-open');
-  document.body.classList.add('is-authenticated');
-
-  const roleLabel = document.getElementById('workspaceRoleLabel');
-  const workspaceTitle = document.getElementById('workspaceTitle');
-  const playerName = document.getElementById('workspacePlayerName');
-  const playerEmail = document.getElementById('workspacePlayerEmail');
-  const centerName = document.getElementById(`${selectedRole}CenterName`);
-  const centerEmail = document.getElementById(`${selectedRole}CenterEmail`);
-  const profileRole = document.getElementById('profileRole');
-  const profileName = document.getElementById('profileDisplayName');
-  const profileEmail = document.getElementById('profileDisplayEmail');
-  const profilePhoto = document.getElementById('profilePhoto');
-  const menuName = document.getElementById('accountMenuName');
-  const menuRole = document.getElementById('accountMenuRole');
-  const menuAvatar = document.getElementById('accountMenuAvatar');
-  const profileRoles = { player: '選手', staff: '工作人員', audience: '觀眾' };
-  const profileSport = { player: 'DUPR 3.8 · 男子雙打', staff: '冬季盃 · 賽事管理', audience: '公開觀眾 · 賽況追蹤' };
-  if (roleLabel) roleLabel.textContent = details.label;
-  if (workspaceTitle) workspaceTitle.textContent = `早安，${accountName}`;
-  if (playerName) playerName.textContent = accountName;
-  if (playerEmail) playerEmail.textContent = email;
-  if (centerName) centerName.textContent = accountName;
-  if (centerEmail) centerEmail.textContent = email;
-  if (profileRole) profileRole.textContent = profileRoles[selectedRole];
-  if (profileName) profileName.textContent = accountName;
-  if (profileEmail) profileEmail.textContent = email;
-  if (profilePhoto) profilePhoto.src = avatar;
-  if (menuName) menuName.textContent = accountName;
-  if (menuRole) menuRole.textContent = profileRoles[selectedRole];
-  if (menuAvatar) menuAvatar.src = avatar;
-  document.getElementById('profileDetailName').textContent = accountName;
-  document.getElementById('profileDetailEmail').textContent = email;
-  document.getElementById('profileDetailRole').textContent = profileRoles[selectedRole];
-  document.getElementById('profileDetailSport').textContent = profileSport[selectedRole];
-  const firstTab = activeDashboard?.querySelector('[data-portal-tab]');
-  if (firstTab?.dataset.portalTab) showPortalPanel(firstTab.dataset.portalTab);
-  if (accountButton) {
-    const content = document.createElement('span');
-    content.className = 'account-button-content';
-    const photo = document.createElement('img');
-    photo.src = avatar;
-    photo.alt = '';
-    const name = document.createElement('span');
-    name.textContent = accountName;
-    const caret = document.createElement('span');
-    caret.className = 'account-caret';
-    caret.textContent = '▾';
-    content.append(photo, name, caret);
-    accountButton.replaceChildren(content);
-    accountButton.classList.add('is-signed-in');
-  }
-  try {
-    localStorage.setItem('bluecourt-account', JSON.stringify({ email, role: selectedRole, displayName: accountName, photo: avatar }));
-  } catch {
-    localStorage.setItem('bluecourt-account', JSON.stringify({ email, role: selectedRole, displayName: accountName }));
-  }
-}
-
-function getSavedAccount() {
-  const storedAccount = localStorage.getItem('bluecourt-account');
-  if (!storedAccount) return null;
-  try {
-    return JSON.parse(storedAccount);
-  } catch {
-    localStorage.removeItem('bluecourt-account');
-    return null;
-  }
-}
-
-function openAccount() {
-  if (getSavedAccount()) {
-    const isOpen = accountMenu?.hidden === false;
-    if (accountMenu) accountMenu.hidden = isOpen;
-    accountButton?.setAttribute('aria-expanded', String(!isOpen));
-    return;
-  }
-  if (loginView) loginView.hidden = false;
-  if (loginForm) loginForm.hidden = false;
-  if (loginModal) loginModal.hidden = false;
+function openLogin() {
+  closeNavigation();
+  $('appNotice').hidden = true;
+  $('loginDescription').textContent = pendingEnrollment
+    ? '登入後將繼續填寫剛剛選定賽事的報名資料。還沒有帳號？請先註冊。'
+    : '使用電子郵件與密碼登入，系統會依帳號權限進入你的介面。';
+  $('loginError').textContent = '';
+  $('loginModal').hidden = false;
   document.body.classList.add('modal-open');
+  $('loginForm').elements.email.focus();
 }
-
-function closeAccount() {
-  if (loginModal) loginModal.hidden = true;
-  document.body.classList.remove('modal-open');
+function openRegister() {
+  closeLogin();
+  setView('register');
+  $('registerError').textContent = '';
 }
-
-accountButton?.addEventListener('click', openAccount);
-document.getElementById('openProfile')?.addEventListener('click', () => {
-  const account = getSavedAccount();
-  if (!account) return openAccount();
-  setSignedIn(account.email, account.role ?? 'player', account.displayName);
-  history.replaceState(null, '', `${location.pathname}${location.search}`);
-  window.scrollTo({ top: 0, behavior: 'auto' });
-});
-
-document.getElementById('backToDashboard')?.addEventListener('click', () => {
-  const account = getSavedAccount();
-  const dashboard = document.getElementById(`${account?.role ?? 'player'}Dashboard`);
-  dashboards.forEach((item) => { item.hidden = item !== dashboard; });
-  if (profilePage) profilePage.hidden = true;
-  if (workspaceHeading) workspaceHeading.hidden = false;
-});
-
-brandHome?.addEventListener('click', () => {
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = true;
-  if (profilePage) profilePage.hidden = true;
-  if (homePage) homePage.hidden = false;
-  document.body.classList.remove('is-authenticated');
-  if (accountMenu) accountMenu.hidden = true;
-  accountButton?.setAttribute('aria-expanded', 'false');
-});
-
-document.getElementById('loginModalBrand')?.addEventListener('click', (event) => {
-  event.preventDefault();
-  closeAccount();
-  if (homePage) homePage.hidden = false;
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = true;
-  document.body.classList.remove('is-authenticated');
-  window.scrollTo({ top: 0, behavior: 'auto' });
-});
-
-document.getElementById('registrationBrandHome')?.addEventListener('click', (event) => {
-  event.preventDefault();
-  if (registrationPage) registrationPage.hidden = true;
-  if (homePage) homePage.hidden = false;
-  document.body.classList.remove('is-authenticated');
-});
-
-roleChoices.forEach((button) => {
-  button.addEventListener('click', () => {
-    selectedRole = button.dataset.loginRole ?? 'player';
-    roleChoices.forEach((choice) => choice.classList.toggle('active', choice === button));
-    const details = roleDetails[selectedRole];
-    const description = document.getElementById('loginDescription');
-    const submitButton = document.getElementById('submitLogin');
-    if (description) description.textContent = details.description;
-    if (submitButton) submitButton.textContent = `以${details.label}身分登入`;
-    if (demoLogin) demoLogin.textContent = `進入${details.label}示範介面`;
-  });
-});
-
-demoLogin?.addEventListener('click', () => {
-  setSignedIn(roleDetails[selectedRole].demoEmail, selectedRole);
-});
-loginForm?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const email = new FormData(loginForm).get('email')?.toString() ?? roleDetails[selectedRole].demoEmail;
-  setSignedIn(email, selectedRole);
-});
-
-document.getElementById('showRegister')?.addEventListener('click', () => {
-  const roleSelect = document.getElementById('registrationRole');
-  if (roleSelect) roleSelect.value = selectedRole;
-  if (loginModal) loginModal.hidden = true;
-  if (homePage) homePage.hidden = true;
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = false;
-  document.body.classList.remove('modal-open');
-});
-
-document.getElementById('registrationLogin')?.addEventListener('click', () => {
-  if (registrationPage) registrationPage.hidden = true;
-  if (homePage) homePage.hidden = false;
-  openAccount();
-});
-
-registerForm?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const formData = new FormData(registerForm);
-  const email = formData.get('email')?.toString() ?? roleDetails[selectedRole].demoEmail;
-  const displayName = formData.get('displayName')?.toString().trim() ?? roleDetails[selectedRole].name;
-  selectedRole = formData.get('role')?.toString() ?? selectedRole;
-  setSignedIn(email, selectedRole, displayName);
-});
-
-portalTabs.forEach((tab) => {
-  tab.addEventListener('click', () => {
-    if (tab.dataset.portalTab) showPortalPanel(tab.dataset.portalTab);
-  });
-});
-
-document.querySelectorAll('[data-staff-tab]').forEach((button) => {
-  button.addEventListener('click', () => {
-    if (button.dataset.staffTab) showPortalPanel(button.dataset.staffTab);
-  });
-});
-
-document.querySelectorAll('[data-player-tab]').forEach((button) => {
-  button.addEventListener('click', () => {
-    if (button.dataset.playerTab) showPortalPanel(button.dataset.playerTab);
-  });
-});
-
-const staffRegistrationRows = document.querySelectorAll('[data-portal-panel="staff-registration"] .data-list > .data-row');
-staffRegistrationRows.forEach((row, index) => {
-  row.dataset.staffCategory = index === 2 ? 'singles' : 'doubles';
-});
-
-document.getElementById('staffGroupFilter')?.addEventListener('change', (event) => {
-  const category = event.target.value;
-  staffRegistrationRows.forEach((row) => {
-    row.hidden = category !== 'all' && row.dataset.staffCategory !== category;
-  });
-});
-
-document.querySelectorAll('.review-action').forEach((button) => {
-  button.addEventListener('click', () => {
-    const row = button.closest('.data-row');
-    const status = row?.querySelector('.staff-review-status');
-    const action = button.dataset.reviewAction ?? button.textContent.trim();
-    if (action === 'approve' || action.includes('核准')) {
-      if (status) {
-        status.textContent = '已核准';
-        status.classList.add('success');
-      }
-      button.textContent = '已核准';
-      button.disabled = true;
+function clearEnrollment() {
+  pendingEnrollment = '';
+  sessionStorage.removeItem('bluecourt-enrollment');
+}
+function afterLogin() {
+  closeLogin();
+  refresh();
+  if (pendingEnrollment) {
+    const e = app.db.events.find((e) => e.id === pendingEnrollment);
+    if (e && registrationAvailable(e)) {
+      openEnrollment(e.id);
       return;
     }
-    if (action === 'request' || action.includes('補')) {
-      if (status) status.textContent = '已通知待補';
-      button.textContent = '已通知';
-      button.disabled = true;
+    clearEnrollment();
+    showWorkspace();
+    notice('原選定的賽事已截止報名。', true);
+    return;
+  }
+  showWorkspace();
+}
+function openEnrollment(eid) {
+  const e = app.event(eid);
+  if (!registrationAvailable(e)) throw new Error('此賽事已截止報名。');
+  pendingEnrollment = eid;
+  sessionStorage.setItem('bluecourt-enrollment', eid);
+  if (!app.current()) {
+    openLogin();
+    return;
+  }
+  if (app.db.entries.some((r) => r.userId === app.current().id && r.eventId === eid)) {
+    clearEnrollment();
+    showWorkspace();
+    if (app.role() === 'player') activeTab = 'entries';
+    renderWorkspace();
+    notice('你已報名此賽事，無須重複報名。');
+    return;
+  }
+  setView('enrollment');
+  renderEnrollment();
+}
+function renderEnrollment() {
+  if (!app.current()) {
+    setView('home');
+    openLogin();
+    return;
+  }
+  const e = app.db.events.find((e) => e.id === pendingEnrollment);
+  if (!e || !registrationAvailable(e)) {
+    clearEnrollment();
+    setView('home');
+    notice('此賽事目前無法報名。', true);
+    return;
+  }
+  $('enrollmentContent').innerHTML = enrollmentView(e, app.current());
+}
+function finalConfirmation(mid) {
+  const m = app.match(mid),
+    revision = m.revision;
+  modal({
+    title: '確認送出最終比分？',
+    description: `${m.teamA} vs ${m.teamB}；局數（大比分）${m.gamesA}：${m.gamesB}，本局得分（小比分）${m.scoreA}：${m.scoreB}。送出後比分將鎖定，無法再次更動；如需修正，請聯絡賽事管理員。`,
+    primary: '確認送出並鎖定',
+    action: () => {
+      app.finalize(mid, revision);
+      closeModal();
+      notice('最終比分已送出並鎖定。');
+    },
+  });
+}
+function reasonModal(mid, kind) {
+  modal({
+    title: kind === 'unlock' ? '重新開放比分' : '請求比分修正',
+    description:
+      kind === 'unlock'
+        ? '填寫原因後，原裁判可將狀態設為開始並修正比分。'
+        : '請描述需要修正的內容，賽事管理員會在此賽事的人員管理看到請求。',
+    body: field('原因', 'reason', '', 'text', 'id="correctionReason" required maxlength="500"'),
+    primary: '確認送出',
+    action: () => {
+      const reason = $('correctionReason').value.trim();
+      if (!reason) throw new Error('請填寫原因。');
+      if (kind === 'unlock') app.unlock(mid, reason);
+      else app.requestCorrection(mid, reason);
+      closeModal();
+      notice('已送出並記錄。');
+    },
+  });
+}
+async function runCommand(buttonElement) {
+  const b = buttonElement,
+    command = b.dataset.command,
+    mid = b.dataset.match,
+    eid = b.dataset.event;
+  switch (command) {
+    case 'today-live':
+      publicTab = 'live';
+      setView('public');
+      renderPublic();
+      break;
+    case 'all-schedule':
+      publicTab = 'schedule';
+      setView('public');
+      renderPublic();
+      break;
+    case 'group-filter':
+      activeGroup = b.dataset.group;
+      renderWorkspace();
+      break;
+    case 'cancel-enrollment':
+      clearEnrollment();
+      setView('home');
+      $('events').scrollIntoView();
+      break;
+    case 'tab':
+      activeTab = b.dataset.tab;
+      activeSubtab = '';
+      editingProfile = false;
+      renderWorkspace();
+      break;
+    case 'subtab':
+      activeSubtab = b.dataset.tab;
+      renderWorkspace();
+      break;
+    case 'home-events':
+      setView('home');
+      $('events').scrollIntoView();
+      break;
+    case 'edit-profile':
+      editingProfile = true;
+      renderWorkspace();
+      break;
+    case 'cancel-profile':
+      editingProfile = false;
+      renderWorkspace();
+      break;
+    case 'enroll':
+      openEnrollment(eid);
+      break;
+    case 'enrollment-login':
+      closeModal();
+      openLogin();
+      break;
+    case 'event-detail': {
+      const e = app.event(eid);
+      modal({
+        title: e.name,
+        description: `${e.date} · ${e.location} · ${e.groups.join('、')} · 報名截止 ${e.deadline}`,
+        primary: registrationAvailable(e) ? '立即報名' : '查看當日賽況',
+        action: () => {
+          closeModal();
+          if (registrationAvailable(e)) openEnrollment(eid);
+          else {
+            publicTab = 'live';
+            setView('public');
+            renderPublic();
+          }
+        },
+      });
+      break;
+    }
+    case 'close-registration':
+      modal({
+        title: '關閉報名並產生賽程？',
+        description:
+          '報名關閉後，系統會依各組別已核准隊伍產生首輪配對；奇數隊伍安排輪空。未核准的報名不會排入，關閉後不再接受報名。',
+        primary: '確認關閉並排程',
+        action: () => {
+          app.closeRegistration(eid);
+          closeModal();
+          notice('已關閉報名並完成首輪配對。');
+        },
+      });
+      break;
+    case 'review':
+      app.review(b.dataset.entry, b.dataset.status);
+      notice('審核狀態已更新。');
+      break;
+    case 'status':
+      app.setStatus(mid, b.dataset.status);
+      break;
+    case 'score':
+      app.score(mid, b.dataset.side, Number(b.dataset.delta), b.dataset.measure || 'points');
+      break;
+    case 'reset-all':
+    case 'reset':
+      modal({
+        title: command === 'reset-all' ? '確定將全部比分歸零？' : '確定將本局得分歸零？',
+        description:
+          command === 'reset-all'
+            ? '雙方局數、本局得分與各局紀錄都會清除。'
+            : '只將本局得分回到 0：0，保留局數與各局紀錄。',
+        primary: '確認歸零',
+        action: () => {
+          app.resetScore(mid, command === 'reset-all' ? 'all' : 'points');
+          closeModal();
+        },
+      });
+      break;
+    case 'finish-game': {
+      const m = app.match(mid),
+        revision = m.revision;
+      modal({
+        title: '確認記錄本局比分？',
+        description:
+          m.teamA +
+          ' ' +
+          m.scoreA +
+          '：' +
+          m.scoreB +
+          ' ' +
+          m.teamB +
+          '。勝方局數加一，保留各局紀錄，本局得分回到零。',
+        primary: '記錄本局',
+        action: () => {
+          app.finishGame(mid, revision);
+          closeModal();
+        },
+      });
+      break;
+    }
+    case 'finalize':
+      finalConfirmation(mid);
+      break;
+    case 'unlock':
+      reasonModal(mid, 'unlock');
+      break;
+    case 'correction':
+      reasonModal(mid, 'correction');
+      break;
+    case 'admin-role': {
+      const user = app.db.users.find((u) => u.id === b.dataset.user);
+      modal({
+        title: '確認變更系統管理員權限？',
+        description:
+          user.email +
+          (user.admin ? ' 將失去所有賽事的系統管理權限。' : ' 將能管理全部賽事與使用者權限。'),
+        primary: '確認變更',
+        action: () => {
+          app.setAdmin(user.id, !user.admin);
+          closeModal();
+        },
+      });
+      break;
+    }
+  }
+}
+document.addEventListener('click', (event) => {
+  const target = event.target.closest('[data-command]');
+  if (target && !target.disabled) {
+    Promise.resolve(runCommand(target)).catch(handleError);
+    return;
+  }
+  if (!event.target.closest('.account-area')) {
+    $('accountMenu').hidden = true;
+    $('accountButton').setAttribute('aria-expanded', 'false');
+  }
+});
+document.addEventListener('change', (event) => {
+  try {
+    const el = event.target;
+    if (el.id === 'event-select') {
+      activeEvent = el.value;
+      renderWorkspace();
+    }
+    if (el.dataset.checkin) app.checkin(el.dataset.checkin, el.dataset.side, el.checked);
+  } catch (error) {
+    handleError(error);
+    refresh();
+  }
+});
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!form.dataset.form) return;
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  try {
+    switch (form.dataset.form) {
+      case 'stream':
+        app.updateStream(form.dataset.event, data.streamUrl);
+        notice('直播網址已更新。');
+        break;
+      case 'enrollment':
+        app.enroll(form.dataset.event, data);
+        clearEnrollment();
+        showWorkspace();
+        if (app.role() === 'player') {
+          activeTab = 'entries';
+          renderWorkspace();
+        }
+        notice('報名成功，等待賽事管理員審核。');
+        break;
+      case 'profile':
+        app.updateProfile(data);
+        editingProfile = false;
+        renderWorkspace();
+        notice('個人資料已儲存。');
+        break;
+      case 'referee':
+        app.assignReferee(form.dataset.match, data.email);
+        notice('裁判指派已更新。');
+        break;
+      case 'manager':
+        app.assignManager(form.dataset.event, data.email, data.operation === 'remove');
+        notice('賽事管理員權限已更新。');
+        break;
+      case 'match':
+        app.changeMatch(form.dataset.match, data);
+        notice('賽事更動已同步。');
+        break;
+      case 'event': {
+        const e = app.createEvent(data);
+        activeEvent = e.id;
+        activeTab = 'events';
+        activeSubtab = 'summary';
+        renderWorkspace();
+        notice('賽事已建立，可至使用者管理指派賽事管理員。');
+        break;
+      }
+    }
+  } catch (error) {
+    handleError(error);
+  }
+});
+$('accountButton').addEventListener('click', () => {
+  if (!app.current()) return openLogin();
+  $('accountMenu').hidden = !$('accountMenu').hidden;
+  $('accountButton').setAttribute('aria-expanded', String(!$('accountMenu').hidden));
+});
+$('openProfile').addEventListener('click', showWorkspace);
+$('menuSignOut').addEventListener('click', () => {
+  closeLogin();
+  closeModal();
+  clearEnrollment();
+  app.logout();
+  setView('home');
+  refresh();
+  notice('已登出。');
+});
+$('brandHome').addEventListener('click', (event) => {
+  event.preventDefault();
+  setView('home');
+});
+$('menuToggle').addEventListener('click', () => {
+  const open = $('navDropdown').classList.toggle('open');
+  $('navDropdown').setAttribute('aria-hidden', String(!open));
+  $('menuToggle').setAttribute('aria-expanded', String(open));
+});
+document.querySelectorAll('.nav-link,.nav-dropdown a').forEach((link) =>
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const role = link.dataset.openRole;
+    if (role) {
+      if (app.current() && pendingEnrollment) openEnrollment(pendingEnrollment);
+      else if (app.current()) showWorkspace();
+      else if (pendingEnrollment) openLogin();
+      else openLogin(role === 'player' ? 'player' : 'staff');
       return;
     }
-    showActionModal({
-      title: '選手資格資料',
-      description: row?.innerText.replace(button.textContent, '').trim() ?? '檢視選手提交的資格資料。',
-    });
-  });
+    setView('home');
+    document.querySelector(link.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
+  }),
+);
+document.querySelectorAll('[data-action="register"]').forEach((b) =>
+  b.addEventListener('click', () => {
+    setView('home');
+    $('events').scrollIntoView();
+  }),
+);
+document.querySelectorAll('[data-action="schedule"]').forEach((b) =>
+  b.addEventListener('click', () => {
+    setView('public');
+    renderPublic();
+  }),
+);
+document.querySelectorAll('[data-public-tab]').forEach((b) =>
+  b.addEventListener('click', () => {
+    publicTab = b.dataset.publicTab;
+    setView('public');
+    renderPublic();
+  }),
+);
+document
+  .querySelectorAll('[data-close-modal]')
+  .forEach((b) => b.addEventListener('click', closeLogin));
+$('loginModalBrand').addEventListener('click', (event) => {
+  event.preventDefault();
+  closeLogin();
+  setView('home');
 });
-
-document.getElementById('staffCheckinSearch')?.addEventListener('input', (event) => {
-  const query = event.target.value.trim().toLocaleLowerCase();
-  document.querySelectorAll('#staffCheckinList .data-row').forEach((row) => {
-    row.hidden = !row.innerText.toLocaleLowerCase().includes(query);
-  });
+$('registrationBrandHome').addEventListener('click', (event) => {
+  event.preventDefault();
+  setView('home');
 });
-
-document.querySelectorAll('[data-portal-panel="staff-checkin"] .data-list > .data-row').forEach((row, index) => {
-  const button = row.querySelector('button');
-  if (index < 2 && button) {
-    button.addEventListener('click', () => {
-      const scoreMatch = row.querySelector('strong')?.textContent.match(/\s(\d+)\s*:\s*(\d+)\s/);
-      const leftScore = scoreMatch?.[1] ?? '0';
-      const rightScore = scoreMatch?.[2] ?? '0';
-      showActionModal({
-        title: `計分 · ${row.firstElementChild.textContent}`,
-        description: '輸入目前比分後儲存，更新此場次的比分顯示。',
-        primaryLabel: '儲存比分',
-        buildBody: (body) => {
-          body.innerHTML += '<label>主隊比分<input id="scoreLeft" type="number" min="0" value="' + leftScore + '"></label><label>客隊比分<input id="scoreRight" type="number" min="0" value="' + rightScore + '"></label>';
-        },
-        onConfirm: () => {
-          const nextLeft = document.getElementById('scoreLeft').value;
-          const nextRight = document.getElementById('scoreRight').value;
-          const score = row.querySelector('strong');
-          if (score) score.textContent = score.textContent.replace(/\s\d+\s*:\s*\d+\s/, `　${nextLeft} : ${nextRight}　`);
-          const state = row.querySelector('.state-label');
-          if (state) state.textContent = '比分已更新';
-          closeActionModal();
-        },
-      });
-    });
+$('showRegister').addEventListener('click', openRegister);
+$('registrationLogin').addEventListener('click', () => openLogin());
+$('loginForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget,
+    button = $('submitLogin');
+  button.disabled = true;
+  try {
+    const data = Object.fromEntries(new FormData(form));
+    await app.login(data.email, data.password);
+    form.reset();
+    afterLogin();
+  } catch (error) {
+    $('loginError').textContent = error.message;
+  } finally {
+    button.disabled = false;
   }
 });
-
-document.querySelector('[data-action="attendance"]')?.addEventListener('click', () => {
-  const row = document.querySelector('[data-action="attendance"]')?.closest('.data-row');
-  showActionModal({
-    title: '報到名單',
-    description: '勾選已到場的候補隊伍，確認後更新報到統計。',
-    primaryLabel: '確認報到',
-    buildBody: (body) => {
-      ['黃家豪 / 吳柏翰', '周子翔 / 蔡承恩', '林子翔 / 張育誠', '王怡婷 / 李佳蓉', '陳柏宇 / 趙明哲', '張家豪 / 林俊傑'].forEach((name, index) => {
-        const label = document.createElement('label');
-        label.className = 'checkin-option';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = name;
-        label.append(checkbox, document.createTextNode(`第 ${index + 1} 隊　${name}`));
-        body.append(label);
-      });
-    },
-    onConfirm: () => {
-      const arrived = document.querySelectorAll('#actionModalBody input:checked').length;
-      const count = row?.querySelector('.attendance-summary');
-      const total = row?.querySelector('strong');
-      if (count) count.textContent = `${6 - arrived} 隊未到`;
-      if (total) total.textContent = `${36 + arrived} 隊已報到`;
-      closeActionModal();
-    },
-  });
-});
-
-document.querySelectorAll('[data-action="team-details"]').forEach((button) => {
-  button.addEventListener('click', () => showActionModal({
-    title: '冬季盃雙打隊伍',
-    description: '隊長：王立晨。隊友：林俊宏（已確認）。資格審核已通過，隊伍報名成立。',
-  }));
-});
-
-document.querySelectorAll('[data-action="score-history"]').forEach((button) => {
-  button.addEventListener('click', () => showActionModal({
-    title: '比分修正紀錄',
-    description: '場次 #08：裁判於 14:12 將 9 : 8 修正為 10 : 8。修正者：裁判 02。',
-  }));
-});
-
-document.getElementById('actionModalPrimary')?.addEventListener('click', () => actionConfirmHandler?.());
-document.querySelectorAll('[data-action-close]').forEach((button) => button.addEventListener('click', closeActionModal));
-document.getElementById('actionModal')?.addEventListener('click', (event) => {
-  if (event.target.id === 'actionModal') closeActionModal();
-});
-
-const scheduleRows = document.querySelectorAll('.audience-schedule-row');
-const scheduleDates = ['2026-11-21', '2026-11-22', '2026-11-23'];
-scheduleRows.forEach((row, index) => { row.dataset.scheduleDate = scheduleDates[index]; });
-document.getElementById('audienceScheduleDate')?.addEventListener('change', (event) => {
-  scheduleRows.forEach((row) => { row.hidden = row.dataset.scheduleDate !== event.target.value; });
-});
-const audienceScheduleDate = document.getElementById('audienceScheduleDate');
-if (audienceScheduleDate) audienceScheduleDate.dispatchEvent(new Event('change'));
-
-document.querySelectorAll('.audience-filters .filter-chip').forEach((button) => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.audience-filters .filter-chip').forEach((item) => item.classList.toggle('active', item === button));
-    const category = button.dataset.audienceGroup ?? 'all';
-    document.querySelectorAll('.audience-match').forEach((match) => {
-      match.hidden = category !== 'all' && match.dataset.audienceCategory !== category;
-    });
-  });
-});
-
-document.getElementById('menuSignOut')?.addEventListener('click', () => {
-  localStorage.removeItem('bluecourt-account');
-  if (accountButton) {
-    accountButton.textContent = '登入';
-    accountButton.classList.remove('is-signed-in');
-    accountButton.setAttribute('aria-expanded', 'false');
-  }
-  if (accountMenu) accountMenu.hidden = true;
-  if (roleWorkspace) roleWorkspace.hidden = true;
-  if (registrationPage) registrationPage.hidden = true;
-  if (homePage) homePage.hidden = false;
-  document.body.classList.remove('is-authenticated');
-  document.body.classList.remove('modal-open');
-});
-
-document.getElementById('profilePhotoInput')?.addEventListener('change', (event) => {
-  const file = event.target.files?.[0];
-  if (!file || !file.type.startsWith('image/') || file.size > 1024 * 1024) return;
-  const reader = new FileReader();
-  reader.addEventListener('load', () => {
-    const photo = reader.result?.toString();
-    const account = getSavedAccount();
-    if (!photo || !account) return;
-    account.photo = photo;
-    localStorage.setItem('bluecourt-account', JSON.stringify(account));
-    document.getElementById('profilePhoto').src = photo;
-    document.getElementById('accountMenuAvatar').src = photo;
-    const buttonPhoto = accountButton?.querySelector('img');
-    if (buttonPhoto) buttonPhoto.src = photo;
-  });
-  reader.readAsDataURL(file);
-});
-
-document.addEventListener('click', (event) => {
-  if (!accountMenu?.hidden && !event.target.closest('.account-area')) {
-    accountMenu.hidden = true;
-    accountButton?.setAttribute('aria-expanded', 'false');
+$('registerForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget,
+    button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    await app.register(Object.fromEntries(new FormData(form)));
+    form.reset();
+    afterLogin();
+    notice('註冊成功，已建立選手帳號。');
+  } catch (error) {
+    $('registerError').textContent = error.message;
+  } finally {
+    button.disabled = false;
   }
 });
-
-document.querySelectorAll('[data-close-modal]').forEach((element) => {
-  element.addEventListener('click', closeAccount);
+$('actionModalPrimary').addEventListener('click', async () => {
+  const button = $('actionModalPrimary');
+  button.disabled = true;
+  try {
+    await modalAction?.();
+  } catch (error) {
+    handleError(error);
+  } finally {
+    button.disabled = false;
+  }
 });
-loginModal?.addEventListener('click', (event) => {
-  if (event.target === loginModal) closeAccount();
-});
+document
+  .querySelectorAll('[data-action-close]')
+  .forEach((b) => b.addEventListener('click', closeModal));
+for (const [id, close] of [
+  ['loginModal', closeLogin],
+  ['actionModal', closeModal],
+])
+  $(id).addEventListener('click', (event) => {
+    if (event.target === $(id)) close();
+  });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && loginModal && !loginModal.hidden) closeAccount();
-  if (event.key === 'Escape' && !document.getElementById('actionModal').hidden) closeActionModal();
-  if (event.key === 'Escape' && accountMenu && !accountMenu.hidden) {
-    accountMenu.hidden = true;
-    accountButton?.setAttribute('aria-expanded', 'false');
+  const dialog = !$('actionModal').hidden
+    ? $('actionModal')
+    : !$('loginModal').hidden
+      ? $('loginModal')
+      : null;
+  if (event.key === 'Escape') {
+    if (dialog?.id === 'actionModal') closeModal();
+    else if (dialog) closeLogin();
+    closeNavigation();
+  }
+  if (event.key === 'Tab' && dialog) {
+    const focusable = [...dialog.querySelectorAll('button,input,select,a[href]')].filter(
+      (el) => !el.disabled && el.getClientRects().length,
+    );
+    const first = focusable[0],
+      last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 });
-
-const existingAccount = getSavedAccount();
-if (existingAccount) setSignedIn(existingAccount.email, existingAccount.role ?? 'player');
-
-document.getElementById('staffEventForm')?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  const newEvent = {
-    id: `${Date.now()}`,
-    name: formData.get('name').toString().trim(),
-    date: formData.get('date').toString(),
-    location: formData.get('location').toString().trim(),
-    courts: Number(formData.get('courts')),
-    capacity: Number(formData.get('capacity')),
-    groups: formData.get('groups').toString().split(/[、,，]/).map((group) => group.trim()).filter(Boolean),
-    deadline: formData.get('deadline').toString(),
-  };
-  const events = readLocalList('bluecourt-managed-events');
-  events.unshift(newEvent);
-  localStorage.setItem('bluecourt-managed-events', JSON.stringify(events));
-  renderCreatedEvents();
-  const message = document.getElementById('eventSavedStatus') ?? document.createElement('p');
-  message.id = 'eventSavedStatus';
-  message.className = 'status-callout';
-  message.textContent = `「${newEvent.name}」已儲存在此瀏覽器。`;
-  event.currentTarget.append(message);
-  event.currentTarget.reset();
-});
-
-document.getElementById('staffScheduleForm')?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  const teams = formData.get('teams').toString().split(/\r?\n/).map((team) => team.trim()).filter(Boolean);
-  const status = document.getElementById('scheduleGeneratedStatus') ?? document.createElement('p');
-  status.id = 'scheduleGeneratedStatus';
-  status.className = 'status-callout';
-  event.currentTarget.append(status);
-  if (teams.length < 2 || teams.length % 2 !== 0) {
-    status.textContent = '請輸入偶數支隊伍，系統才能兩兩配對。';
-    status.style.color = 'var(--danger)';
-    return;
+$('eventSearch').addEventListener('input', renderHome);
+$('eventSort').addEventListener('change', renderHome);
+document.querySelectorAll('[data-filter]').forEach((b) =>
+  b.addEventListener('click', () => {
+    activeFilter = b.dataset.filter;
+    document
+      .querySelectorAll('[data-filter]')
+      .forEach((el) => el.classList.toggle('active', el === b));
+    renderHome();
+  }),
+);
+window.addEventListener('storage', (event) => {
+  if (![BlueCourt.KEY, BlueCourt.SESSION, null].includes(event.key)) return;
+  try {
+    const oldUser = app.current()?.id,
+      oldRole = app.role();
+    const focused = document.activeElement;
+    const form = focused?.closest('form[data-form]');
+    const draft = form
+      ? {
+          kind: form.dataset.form,
+          match: form.dataset.match,
+          event: form.dataset.event,
+          values: Object.fromEntries(new FormData(form)),
+          focus: focused.name,
+          start: focused.selectionStart,
+          end: focused.selectionEnd,
+        }
+      : null;
+    app.load();
+    refresh();
+    if (draft && app.current()?.id === oldUser && app.role() === oldRole) {
+      const nextForm = [...document.querySelectorAll('form[data-form]')].find(
+        (f) =>
+          f.dataset.form === draft.kind &&
+          f.dataset.match === draft.match &&
+          f.dataset.event === draft.event,
+      );
+      if (nextForm) {
+        for (const [key, value] of Object.entries(draft.values))
+          if (nextForm.elements[key]) nextForm.elements[key].value = value;
+        const nextInput = nextForm.elements[draft.focus];
+        nextInput?.focus();
+        if (nextInput && draft.start !== null && ['text', 'tel', 'search'].includes(nextInput.type))
+          nextInput.setSelectionRange(draft.start, draft.end);
+      }
+    }
+    notice(draft ? '資料已同步；尚未送出的表單內容已保留。' : '賽事與帳號資料已同步更新。');
+  } catch (error) {
+    handleError(error);
   }
-
-  const courts = Number(formData.get('courts'));
-  const interval = Number(formData.get('interval'));
-  const firstTime = new Date(`${formData.get('date')}T${formData.get('time')}:00`);
-  const eventName = formData.get('event').toString();
-  const group = formData.get('group').toString();
-  const matches = [];
-  for (let index = 0; index < teams.length; index += 2) {
-    const start = new Date(firstTime.getTime() + (index / 2) * interval * 60000);
-    matches.push({
-      id: `${Date.now()}-${index}`,
-      event: eventName,
-      group,
-      date: formData.get('date').toString(),
-      time: start.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      court: (index / 2) % courts + 1,
-      teamA: teams[index],
-      teamB: teams[index + 1],
-    });
+});
+app.onchange = () => {
+  if (app.db) refresh();
+};
+(async () => {
+  try {
+    await app.init();
+    app.expireRegistrations();
+    refresh();
+    $('appLoading').hidden = true;
+    if (app.current() && pendingEnrollment) openEnrollment(pendingEnrollment);
+    else if (app.current()) showWorkspace();
+    else if (pendingEnrollment) openLogin();
+  } catch (error) {
+    $('appLoading').textContent = '無法載入本機資料：' + error.message;
+    handleError(error);
   }
-  const schedule = [...matches, ...readLocalList('bluecourt-managed-schedule')];
-  localStorage.setItem('bluecourt-managed-schedule', JSON.stringify(schedule));
-  renderGeneratedSchedule();
-  status.style.color = '';
-  status.textContent = `已依隊伍順序產生 ${matches.length} 場配對並儲存在此瀏覽器。`;
+})();
+
+$('appNotice').addEventListener('click', () => {
+  $('appNotice').hidden = true;
 });
-
-document.getElementById('createdEventList')?.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-remove-event]');
-  if (!button) return;
-  const eventId = button.dataset.removeEvent;
-  const events = readLocalList('bluecourt-managed-events').filter((item) => item.id !== eventId);
-  localStorage.setItem('bluecourt-managed-events', JSON.stringify(events));
-  renderCreatedEvents();
+window.setInterval(() => {
+  try {
+    app.expireRegistrations();
+    renderHome();
+    if (view === 'public') renderPublic();
+  } catch (error) {
+    handleError(error);
+  }
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    try {
+      app.expireRegistrations();
+      renderHome();
+      if (view === 'public') renderPublic();
+    } catch (error) {
+      handleError(error);
+    }
+  }
 });
-
-document.getElementById('generatedScheduleList')?.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-remove-match]');
-  if (!button) return;
-  const matches = readLocalList('bluecourt-managed-schedule').filter((item) => item.id !== button.dataset.removeMatch);
-  localStorage.setItem('bluecourt-managed-schedule', JSON.stringify(matches));
-  renderGeneratedSchedule();
-});
-
-renderCreatedEvents();
-renderGeneratedSchedule();
-
-document.querySelector('#staffScheduleForm select[name="event"]')?.addEventListener('change', (event) => {
-  const option = event.target.selectedOptions[0];
-  const date = document.querySelector('#staffScheduleForm input[name="date"]');
-  const courts = document.querySelector('#staffScheduleForm input[name="courts"]');
-  if (date && option.dataset.date) date.value = option.dataset.date;
-  if (courts && option.dataset.courts) courts.value = option.dataset.courts;
-});
-
-updateEvents();
