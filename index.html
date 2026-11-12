@@ -18,10 +18,10 @@
             <span></span>
             <span></span>
           </button>
-          <div class="brand" aria-label="BlueCourt 品牌">
+          <a class="brand" id="brandHome" href="#home" aria-label="BlueCourt 首頁">
             <div class="brand-mark">BC</div>
             <span>BlueCourt</span>
-          </div>
+          </a>
         </div>
 
         <nav class="primary-nav" aria-label="主要頁面導覽">
@@ -32,7 +32,17 @@
           <a href="#about" class="nav-link">關於</a>
         </nav>
 
-        <button class="login-button" id="accountButton" type="button">登入</button>
+        <div class="account-area">
+          <button class="login-button" id="accountButton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">登入</button>
+          <div class="account-menu" id="accountMenu" role="menu" hidden>
+            <div class="account-menu-identity">
+              <img id="accountMenuAvatar" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&h=96&q=80" alt="帳戶頭像" />
+              <div><strong id="accountMenuName">BlueCourt 使用者</strong><span id="accountMenuRole">個人帳戶</span></div>
+            </div>
+            <button type="button" role="menuitem" id="openProfile">個人資訊</button>
+            <button type="button" role="menuitem" id="menuSignOut">登出</button>
+          </div>
+        </div>
       </header>
 
       <div class="nav-dropdown" id="navDropdown" aria-hidden="true">
@@ -51,9 +61,9 @@
           </div>
           <div class="dropdown-block">
             <span class="dropdown-label">管理</span>
-            <a href="#admin">賽事管理</a>
-            <a href="#teams">隊伍面板</a>
-            <a href="#scores">計分中心</a>
+            <a href="#staff" data-open-role="staff">賽事管理</a>
+            <a href="#player" data-open-role="player" data-player-tab="player-entry">隊伍面板</a>
+            <a href="#staff-score" data-open-role="staff" data-staff-tab="staff-checkin">計分中心</a>
           </div>
         </div>
       </div>
@@ -67,8 +77,8 @@
               關注最新賽事、追蹤選手狀態、看直播、查看賽程表，所有資訊一站收納。
             </p>
             <div class="hero-actions">
-              <button class="primary-button" type="button">立即報名</button>
-              <button class="secondary-button" type="button">查看賽程</button>
+              <button class="primary-button" type="button" data-action="register">立即報名</button>
+              <button class="secondary-button" type="button" data-action="schedule">查看賽程</button>
             </div>
           </div>
 
@@ -104,7 +114,7 @@
               <p class="section-kicker">直播中</p>
               <h2>熱門賽事</h2>
             </div>
-            <button class="text-button" type="button">查看全部</button>
+            <button class="text-button" type="button" data-public-tab="audience-live">查看全部</button>
           </div>
 
           <div class="live-grid">
@@ -119,6 +129,7 @@
                 <span>4.8K 觀看中</span>
                 <span>12 分鐘前</span>
               </div>
+              <button class="text-button" type="button" data-live-detail="men-doubles">查看賽況</button>
             </article>
 
             <article class="live-card">
@@ -132,6 +143,7 @@
                 <span>2.1K 觀看中</span>
                 <span>7 分鐘前</span>
               </div>
+              <button class="text-button" type="button" data-live-detail="women-singles">查看賽況</button>
             </article>
 
             <article class="live-card">
@@ -145,6 +157,7 @@
                 <span>17:30 開始</span>
                 <span>今日</span>
               </div>
+              <button class="text-button" type="button" data-live-detail="final">查看賽事資訊</button>
             </article>
           </div>
         </section>
@@ -155,7 +168,7 @@
               <p class="section-kicker">賽程表</p>
               <h2>本週安排</h2>
             </div>
-            <button class="text-button" type="button">全部賽程</button>
+            <button class="text-button" type="button" data-public-tab="audience-schedule">全部賽程</button>
           </div>
 
           <div class="schedule-layout">
@@ -272,6 +285,7 @@
                 <p>台北市立體育館 · 8 支隊伍 · 11 月 21–23 日</p>
                 <div class="event-meta"><span class="event-state live-text">● 直播中</span><span>4.8K 人關注</span></div>
                 <div class="event-price"><strong>免費觀賽</strong><span>報名已截止</span></div>
+                <button class="text-button" type="button" data-event-detail>賽事資訊</button>
               </div>
             </article>
 
@@ -286,6 +300,7 @@
                 <p>新北運動中心 · 單打、雙打 · 12 月 6–8 日</p>
                 <div class="event-meta"><span class="event-state">◷ 12 月 6 日開始</span><span>2.1K 人關注</span></div>
                 <div class="event-price"><strong>免費觀賽</strong><span>尚有名額</span></div>
+                <button class="text-button" type="button" data-event-detail>賽事資訊</button>
               </div>
             </article>
 
@@ -300,6 +315,7 @@
                 <p>台中北區運動中心 · 青年組 · 12 月 14–15 日</p>
                 <div class="event-meta"><span class="event-state">報名開放中</span><span>1.3K 人關注</span></div>
                 <div class="event-price"><strong>免費觀賽</strong><span>尚有名額</span></div>
+                <button class="text-button" type="button" data-event-detail>賽事資訊</button>
               </div>
             </article>
           </div>
@@ -357,41 +373,207 @@
           </div>
         </section>
       </main>
+
+      <main class="role-workspace" id="roleWorkspace" hidden>
+        <div class="workspace-heading">
+          <div>
+            <p class="section-kicker" id="workspaceRoleLabel">選手中心</p>
+            <h1 id="workspaceTitle">早安，王立晨</h1>
+          </div>
+        </div>
+
+        <section class="role-dashboard" id="playerDashboard" data-dashboard="player" hidden>
+          <nav class="workspace-tabs" aria-label="選手中心頁面">
+            <button class="workspace-tab active" type="button" data-portal-tab="player-center">個人中心</button>
+            <button class="workspace-tab active" type="button" data-portal-tab="player-schedule">我的賽程</button>
+            <button class="workspace-tab" type="button" data-portal-tab="player-entry">報名與隊伍</button>
+            <button class="workspace-tab" type="button" data-portal-tab="player-account">個人資料</button>
+          </nav>
+          <section class="workspace-panel active" data-portal-panel="player-center">
+            <div class="profile-identity"><div class="avatar">CJ</div><div><strong id="playerCenterName">王立晨</strong><p id="playerCenterEmail">player@bluecourt.tw</p></div></div>
+            <div class="summary-strip"><div><span>報名賽事</span><strong>02</strong></div><div><span>隊友狀態</span><strong class="profile-status-value">已確認</strong></div><div><span>DUPR</span><strong>3.8</strong></div><div><span>下一場</span><strong>14:30</strong></div></div>
+            <div class="workspace-subheading"><h3>快速前往</h3></div>
+            <div class="personal-shortcuts"><button class="secondary-button" type="button" data-player-tab="player-schedule">查看我的賽程</button><button class="secondary-button" type="button" data-player-tab="player-entry">查看報名與隊伍</button><button class="secondary-button" type="button" data-player-tab="player-account">編輯個人資料</button></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="player-schedule" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">下一場</p><h2>冬季盃 · 男子雙打</h2></div><span class="state-label in-progress">進行中</span></div>
+            <div class="match-summary"><div><span>場次 #12 · 第 6 場地</span><strong>14:30</strong></div><div class="match-score"><span>王立晨 / 林俊宏</span><strong>10 : 8</strong><span>陳子安 / 張明哲</span></div></div>
+            <div class="workspace-subheading"><h3>近期賽程</h3><span>冬季盃</span></div>
+            <div class="data-list">
+              <div class="data-row"><span>今天 14:30</span><strong>男子雙打 · 場次 #12</strong><span>第 6 場地</span><span class="state-label in-progress">進行中</span></div>
+              <div class="data-row"><span>今天 18:00</span><strong>男子雙打 · 準決賽</strong><span>待晉級</span><span class="state-label">未開始</span></div>
+            </div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="player-entry" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">報名狀態</p><h2>我的賽事與隊伍</h2></div></div>
+            <div class="data-list">
+              <div class="data-row"><span>冬季盃</span><strong>男子雙打</strong><span>資格 DUPR 3.8 / 門檻 3.5</span><span class="state-label success">報名成立</span></div>
+              <div class="data-row"><span>城市公開賽</span><strong>男子單打</strong><span>報名截止 11 月 30 日</span><span class="state-label success">資格符合</span></div>
+            </div>
+            <div class="team-confirmation"><div><strong>雙打隊友確認</strong><p>林俊宏已加入你的冬季盃隊伍。</p></div><button class="secondary-button" id="teamConfirm" data-action="team-details" type="button">查看隊伍</button></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="player-account" hidden>
+            <div class="profile-identity"><div class="avatar">CJ</div><div><strong id="workspacePlayerName">王立晨</strong><p id="workspacePlayerEmail">player@bluecourt.tw</p></div></div>
+            <div class="data-list"><div class="data-row"><span>球員等級</span><strong>DUPR 3.8</strong><span>最近更新 11 月 10 日</span></div><div class="data-row"><span>常用組別</span><strong>男子雙打</strong><span>隊友：林俊宏</span></div></div>
+          </section>
+        </section>
+
+        <section class="role-dashboard" id="staffDashboard" data-dashboard="staff" hidden>
+          <nav class="workspace-tabs" aria-label="工作人員後台頁面">
+            <button class="workspace-tab active" type="button" data-portal-tab="staff-center">個人中心</button>
+            <button class="workspace-tab" type="button" data-portal-tab="staff-event-setup">賽事登錄</button>
+            <button class="workspace-tab" type="button" data-portal-tab="staff-schedule-setup">賽程安排</button>
+            <button class="workspace-tab" type="button" data-portal-tab="staff-overview">賽事總覽</button>
+            <button class="workspace-tab" type="button" data-portal-tab="staff-registration">報名審核</button>
+            <button class="workspace-tab" type="button" data-portal-tab="staff-checkin">報到與計分</button>
+          </nav>
+          <section class="workspace-panel active" data-portal-panel="staff-center">
+            <div class="profile-identity"><div class="avatar">BC</div><div><strong id="staffCenterName">賽事管理員</strong><p id="staffCenterEmail">staff@bluecourt.tw</p></div></div>
+            <div class="workspace-section-heading"><div><p class="section-kicker">今天的值班賽事</p><h2>冬季盃 · 賽事工作台</h2></div><span class="state-label in-progress">進行中</span></div>
+            <div class="summary-strip"><div><span>待審核</span><strong>04</strong></div><div><span>尚未報到</span><strong>06</strong></div><div><span>進行中場次</span><strong>08</strong></div><div><span>待確認修正</span><strong>01</strong></div></div>
+            <div class="workspace-subheading"><h3>我的工作</h3></div>
+            <div class="personal-shortcuts"><button class="secondary-button" type="button" data-staff-tab="staff-event-setup">建立賽事</button><button class="secondary-button" type="button" data-staff-tab="staff-schedule-setup">安排賽程</button><button class="secondary-button" type="button" data-staff-tab="staff-registration">處理報名審核</button><button class="secondary-button" type="button" data-staff-tab="staff-checkin">管理報到與計分</button></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="staff-event-setup" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">賽事設定</p><h2>建立／登錄比賽</h2></div></div>
+            <form class="workflow-form" id="staffEventForm">
+              <label class="form-field">賽事名稱<input name="name" type="text" placeholder="例如：春季城市盃" required /></label>
+              <div class="form-grid"><label class="form-field">開始日期<input name="date" type="date" required /></label><label class="form-field">地點<input name="location" type="text" placeholder="球館或場地名稱" required /></label></div>
+              <div class="form-grid"><label class="form-field">場地數<input name="courts" type="number" min="1" max="100" value="8" required /></label><label class="form-field">隊伍上限<input name="capacity" type="number" min="2" max="256" value="32" required /></label></div>
+              <label class="form-field">競賽組別<input name="groups" type="text" placeholder="男子單打、男子雙打" value="男子單打、男子雙打" required /></label>
+              <label class="form-field">報名截止日<input name="deadline" type="date" required /></label>
+              <button class="primary-button" type="submit">儲存賽事</button>
+            </form>
+            <div class="workspace-subheading"><h3>已登錄賽事</h3><span id="createdEventCount">0 場</span></div>
+            <div class="data-list" id="createdEventList"><p class="empty-state" id="emptyEventList">尚未建立賽事。</p></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="staff-schedule-setup" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">比賽安排</p><h2>賽程編排</h2></div></div>
+            <form class="workflow-form" id="staffScheduleForm">
+              <div class="form-grid"><label class="form-field">賽事<select name="event"><option>冬季盃</option></select></label><label class="form-field">組別<select name="group"><option>男子雙打</option><option>男子單打</option><option>女子雙打</option></select></label></div>
+              <div class="form-grid"><label class="form-field">比賽日期<input name="date" type="date" value="2026-11-21" required /></label><label class="form-field">首場時間<input name="time" type="time" value="14:00" required /></label></div>
+              <div class="form-grid"><label class="form-field">可用場地<input name="courts" type="number" min="1" max="100" value="8" required /></label><label class="form-field">每場間隔（分鐘）<input name="interval" type="number" min="15" max="240" step="15" value="45" required /></label></div>
+              <label class="form-field">參賽隊伍（每行一隊，依序配對）<textarea name="teams" rows="5" required placeholder="Alpha / Bravo&#10;Charlie / Delta&#10;Echo / Foxtrot&#10;Golf / Hotel">Alpha / Bravo
+Charlie / Delta
+Echo / Foxtrot
+Golf / Hotel</textarea></label>
+              <button class="primary-button" type="submit">產生賽程</button>
+            </form>
+            <div class="workspace-subheading"><h3>已安排場次</h3><span id="generatedMatchCount">0 場</span></div>
+            <div class="data-list" id="generatedScheduleList"><p class="empty-state" id="emptyScheduleList">填入隊伍並產生賽程。</p></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="staff-overview" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">冬季盃 · 11 月 21–23 日</p><h2>賽事營運總覽</h2></div><span class="state-label in-progress">比賽進行中</span></div>
+            <div class="summary-strip"><div><span>報名隊伍</span><strong>42 <small>/ 48</small></strong></div><div><span>已報到</span><strong>36 <small>/ 42</small></strong></div><div><span>進行中場次</span><strong>08</strong></div><div><span>待審核</span><strong>04</strong></div></div>
+            <div class="workspace-subheading"><h3>需要處理</h3></div>
+            <div class="data-list"><div class="data-row"><span>報名審核</span><strong>4 筆資格待覆核</strong><span>男子雙打</span><button class="text-button" type="button" data-staff-tab="staff-registration">前往審核</button></div><div class="data-row"><span>現場報到</span><strong>6 隊尚未到場</strong><span>報到截止 13:30</span><button class="text-button" type="button" data-staff-tab="staff-checkin">管理報到</button></div><div class="data-row"><span>計分紀錄</span><strong>1 筆比分修正待確認</strong><span>場次 #08</span><button class="text-button" type="button" data-staff-tab="staff-checkin" data-action="score-history">查看紀錄</button></div></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="staff-registration" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">待處理 4 筆</p><h2>報名資格審核</h2></div><label class="compact-select">組別<select id="staffGroupFilter" aria-label="選擇組別"><option value="all">全部組別</option><option value="singles">男子單打</option><option value="doubles">男子雙打</option></select></label></div>
+            <div class="data-list"><div class="data-row"><span>隊伍 A</span><strong>王立晨 / 林俊宏</strong><span>DUPR 3.8 / 3.6 · 符合</span><span class="staff-review-status state-label">待審核</span><button class="secondary-button review-action" data-review-action="approve" type="button">核准</button></div><div class="data-row"><span>隊伍 B</span><strong>陳子安 / 張明哲</strong><span>隊友確認中</span><span class="staff-review-status state-label">待補資料</span><button class="secondary-button review-action" data-review-action="request" type="button">通知補件</button></div><div class="data-row"><span>選手 C</span><strong>李佳蓉</strong><span>DUPR 資料需人工覆核</span><span class="staff-review-status state-label">待審核</span><button class="secondary-button review-action" data-review-action="details" type="button">查看資料</button></div></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="staff-checkin" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">現場作業</p><h2>報到與計分</h2></div><label class="compact-search"><span>搜尋</span><input id="staffCheckinSearch" type="search" placeholder="選手／隊伍／場次" /></label></div>
+            <div class="workspace-subheading"><h3>場地即時狀態</h3><span>最後更新 14:26</span></div>
+            <div class="data-list" id="staffCheckinList"><div class="data-row"><span>場地 6 · #12</span><strong>王立晨 / 林俊宏　10 : 8　陳子安 / 張明哲</strong><span class="state-label in-progress">進行中</span><button class="secondary-button score-action" type="button">計分</button></div><div class="data-row"><span>場地 7 · #13</span><strong>黃家豪 / 吳柏翰　2 : 3　周子翔 / 蔡承恩</strong><span class="state-label in-progress">進行中</span><button class="secondary-button score-action" type="button">計分</button></div><div class="data-row"><span>報到名單</span><strong>36 隊已報到</strong><span class="attendance-summary">6 隊未到</span><button class="secondary-button" data-action="attendance" type="button">管理名單</button></div></div>
+          </section>
+        </section>
+
+        <section class="role-dashboard" id="audienceDashboard" data-dashboard="audience" hidden>
+          <nav class="workspace-tabs" aria-label="觀眾賽況頁面">
+            <button class="workspace-tab active" type="button" data-portal-tab="audience-center">個人中心</button>
+            <button class="workspace-tab active" type="button" data-portal-tab="audience-live">即時賽況</button>
+            <button class="workspace-tab" type="button" data-portal-tab="audience-schedule">賽程表</button>
+            <button class="workspace-tab" type="button" data-portal-tab="audience-players">選手與組別</button>
+          </nav>
+          <section class="workspace-panel active" data-portal-panel="audience-center">
+            <div class="profile-identity"><div class="avatar">BC</div><div><strong id="audienceCenterName">賽事觀眾</strong><p id="audienceCenterEmail">fan@bluecourt.tw</p></div></div>
+            <div class="workspace-section-heading"><div><p class="section-kicker">我的關注</p><h2>冬季盃</h2></div><span class="state-label in-progress">08 場進行中</span></div>
+            <div class="data-list"><div class="data-row"><span>目前直播</span><strong>男子雙打準決賽</strong><span>Alpha / Bravo 10 : 8</span><button class="text-button" type="button" data-live-detail="men-doubles">查看賽況</button></div><div class="data-row"><span>下一場焦點</span><strong>男子雙打冠軍賽</strong><span>今天 18:00 · 主場館</span><button class="text-button" type="button" data-portal-tab="audience-schedule">查看賽程</button></div></div>
+            <div class="workspace-subheading"><h3>快速前往</h3></div>
+            <div class="personal-shortcuts"><button class="secondary-button" type="button" data-portal-tab="audience-live">即時賽況</button><button class="secondary-button" type="button" data-portal-tab="audience-schedule">完整賽程</button><button class="secondary-button" type="button" data-portal-tab="audience-players">選手與組別</button></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="audience-live" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">冬季盃 · 台北市立體育館</p><h2>公開賽況</h2></div><span class="state-label in-progress">08 場進行中</span></div>
+            <div class="audience-filters" role="group" aria-label="觀眾賽況組別"><button class="filter-chip active" data-audience-group="all" type="button">全部組別</button><button class="filter-chip" data-audience-group="men-singles" type="button">男子單打</button><button class="filter-chip" data-audience-group="men-doubles" type="button">男子雙打</button><button class="filter-chip" data-audience-group="women-doubles" type="button">女子雙打</button></div>
+            <div class="data-list"><div class="data-row audience-match" data-audience-category="men-doubles"><span>場地 6 · 準決賽</span><strong>Alpha / Bravo</strong><b class="audience-score">10 : 8</b><strong>Charlie / Delta</strong><span class="state-label in-progress">第 2 局</span><button class="text-button" data-live-detail="men-doubles" type="button">觀看直播</button></div><div class="data-row audience-match" data-audience-category="women-doubles"><span>場地 7 · 1/4 決賽</span><strong>Echo / Foxtrot</strong><b class="audience-score">2 : 3</b><strong>Golf / Hotel</strong><span class="state-label in-progress">第 1 局</span><span></span></div><div class="data-row audience-match" data-audience-category="men-singles"><span>場地 2 · 男子單打</span><strong>林子傑</strong><b class="audience-score">11 : 7</b><strong>張育誠</strong><span class="state-label">已結束</span><span></span></div></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="audience-schedule" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">今日賽程</p><h2>賽程表</h2></div><label class="compact-select">日期<select id="audienceScheduleDate" aria-label="選擇賽程日期"><option value="2026-11-21">11 月 21 日</option><option value="2026-11-22">11 月 22 日</option><option value="2026-11-23">11 月 23 日</option></select></label></div>
+            <div class="data-list"><div class="data-row audience-schedule-row"><span>14:00</span><strong>男子雙打 · 準決賽</strong><span>場地 6</span><span>Alpha / Bravo vs Charlie / Delta</span><span class="state-label in-progress">進行中</span></div><div class="data-row audience-schedule-row"><span>15:30</span><strong>女子單打 · 資格賽</strong><span>場地 3</span><span>Echo vs Foxtrot</span><span class="state-label">未開始</span></div><div class="data-row audience-schedule-row"><span>18:00</span><strong>男子雙打 · 冠軍賽</strong><span>主場館</span><span>準決賽勝方</span><span class="state-label">預計直播</span></div></div>
+          </section>
+          <section class="workspace-panel" data-portal-panel="audience-players" hidden>
+            <div class="workspace-section-heading"><div><p class="section-kicker">參賽資訊</p><h2>選手與組別</h2></div></div>
+            <div class="data-list"><div class="data-row"><span>男子雙打</span><strong>16 支隊伍</strong><span>準決賽：4 隊</span><span>冠軍賽 18:00</span></div><div class="data-row"><span>女子單打</span><strong>24 位選手</strong><span>資格賽進行中</span><span>場地 3、4</span></div><div class="data-row"><span>男子單打</span><strong>32 位選手</strong><span>1/4 決賽</span><span>場地 1、2</span></div></div>
+          </section>
+        </section>
+
+        <section class="profile-page" id="profilePage" hidden>
+          <div class="profile-page-heading"><div><p class="section-kicker">帳戶設定</p><h2>個人資訊</h2></div><button class="secondary-button" id="backToDashboard" type="button">返回工作區</button></div>
+          <div class="profile-cover" role="img" aria-label="球場個人封面照片"></div>
+          <div class="profile-page-identity">
+            <div class="profile-photo-wrap"><img id="profilePhoto" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&h=240&q=85" alt="個人頭像" /><label class="photo-upload-button" for="profilePhotoInput">更新照片</label><input id="profilePhotoInput" type="file" accept="image/*" hidden /></div>
+            <div><p class="section-kicker" id="profileRole">選手</p><h3 id="profileDisplayName">王立晨</h3><p id="profileDisplayEmail">player@bluecourt.tw</p></div>
+          </div>
+          <div class="profile-details">
+            <div><span>顯示名稱</span><strong id="profileDetailName">王立晨</strong></div>
+            <div><span>登入電子郵件</span><strong id="profileDetailEmail">player@bluecourt.tw</strong></div>
+            <div><span>帳戶身分</span><strong id="profileDetailRole">選手</strong></div>
+            <div><span>賽事資訊</span><strong id="profileDetailSport">DUPR 3.8 · 男子雙打</strong></div>
+          </div>
+        </section>
+      </main>
+      <main class="registration-page" id="registrationPage" hidden>
+        <div class="registration-card">
+          <a class="modal-brand registration-brand" id="registrationBrandHome" href="#home"><span class="brand-mark">BC</span><span>BlueCourt</span></a>
+          <p class="section-kicker">建立帳戶</p>
+          <h1>加入 BlueCourt</h1>
+          <p class="modal-copy">建立帳戶後即可依身分使用賽事服務。</p>
+          <form id="registerForm">
+            <label class="form-field">使用身分<select id="registrationRole" name="role"><option value="player">選手</option><option value="staff">工作人員</option><option value="audience">觀眾</option></select></label>
+            <label class="form-field">顯示名稱<input type="text" name="displayName" placeholder="輸入姓名或暱稱" required /></label>
+            <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
+            <label class="form-field">密碼<input type="password" name="password" placeholder="至少 4 個字元" minlength="4" required /></label>
+            <button class="modal-submit" type="submit">建立帳戶</button>
+          </form>
+          <p class="register-prompt">已經有帳號？ <button class="register-link" id="registrationLogin" type="button">返回登入</button></p>
+        </div>
+      </main>
     </div>
 
     <div class="modal-backdrop" id="loginModal" hidden>
       <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
         <button class="modal-close" type="button" data-close-modal aria-label="關閉">×</button>
-        <div class="modal-brand"><div class="brand-mark">BC</div><span>BlueCourt</span></div>
+        <a class="modal-brand" id="loginModalBrand" href="#home" aria-label="返回 BlueCourt 首頁"><div class="brand-mark">BC</div><span>BlueCourt</span></a>
         <div id="loginView">
-          <p class="section-kicker">歡迎回來</p>
+          <p class="section-kicker">選擇使用身分</p>
           <h2 id="loginTitle">登入 BlueCourt</h2>
-          <p class="modal-copy">登入後管理報名、追蹤賽程，並收藏你關注的賽事。</p>
+          <div class="role-choices" role="group" aria-label="登入身分">
+            <button class="role-choice active" type="button" data-login-role="player"><strong>選手</strong><span>報名、隊伍與個人賽程</span></button>
+            <button class="role-choice" type="button" data-login-role="staff"><strong>工作人員</strong><span>賽事後台、審核、報到與計分</span></button>
+            <button class="role-choice" type="button" data-login-role="audience"><strong>觀眾</strong><span>追蹤公開賽況與賽程</span></button>
+          </div>
+          <p class="modal-copy" id="loginDescription">登入後查看個人報名狀態、隊伍資訊和下一場賽程。</p>
           <form id="loginForm">
             <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
             <label class="form-field">密碼<input type="password" name="password" placeholder="輸入密碼" minlength="4" required /></label>
-            <button class="modal-submit" type="submit">登入</button>
+            <button class="modal-submit" id="submitLogin" type="submit">以選手身分登入</button>
           </form>
-          <button class="text-button demo-login" id="demoLogin" type="button">使用示範選手帳號登入</button>
+          <button class="text-button demo-login" id="demoLogin" type="button">進入選手示範介面</button>
+          <p class="register-prompt">還沒有帳號？ <button class="register-link" id="showRegister" type="button">立即註冊</button></p>
         </div>
-        <div id="profileView" hidden>
-          <p class="section-kicker">個人中心</p>
-          <h2 id="profileTitle">我的 BlueCourt</h2>
-          <div class="profile-identity">
-            <div class="avatar">CJ</div>
-            <div><strong id="profileName">王立晨</strong><p id="profileEmail">player@bluecourt.tw</p></div>
-          </div>
-          <div class="profile-stats">
-            <div><span>已報名賽事</span><strong>2</strong></div>
-            <div><span>已收藏</span><strong>4</strong></div>
-            <div><span>DUPR</span><strong>3.8</strong></div>
-          </div>
-          <div class="profile-links">
-            <a href="#schedule" data-close-modal>我的賽程 <span>›</span></a>
-            <a href="#events" data-close-modal>已收藏賽事 <span>›</span></a>
-            <a href="#players" data-close-modal>選手資料與隊伍 <span>›</span></a>
-          </div>
-          <button class="modal-submit secondary-submit" id="signOut" type="button">登出</button>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="actionModal" hidden>
+      <section class="account-modal action-modal" role="dialog" aria-modal="true" aria-labelledby="actionModalTitle">
+        <button class="modal-close" type="button" data-action-close aria-label="關閉">×</button>
+        <p class="section-kicker" id="actionModalKicker">BlueCourt</p>
+        <h2 id="actionModalTitle">賽事資訊</h2>
+        <div class="action-modal-body" id="actionModalBody"></div>
+        <div class="action-modal-footer">
+          <button class="secondary-button" type="button" data-action-close>關閉</button>
+          <button class="primary-button" id="actionModalPrimary" type="button" hidden>確認</button>
         </div>
       </section>
     </div>
