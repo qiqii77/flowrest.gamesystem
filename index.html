@@ -40,7 +40,7 @@
               <div class="avatar" id="accountMenuAvatar" aria-hidden="true">BC</div>
               <div><strong id="accountMenuName">BlueCourt 使用者</strong><span id="accountMenuRole">個人帳戶</span></div>
             </div>
-            <button type="button" role="menuitem" id="openProfile">個人資訊</button>
+            <button type="button" role="menuitem" id="openProfile">個人中心</button>
             <button type="button" role="menuitem" id="menuSignOut">登出</button>
           </div>
         </div>
@@ -59,10 +59,10 @@
             <a href="#events">賽事資訊</a>
           </div>
           <div class="dropdown-block">
-            <span class="dropdown-label">管理</span>
-            <a href="#staff" data-open-role="staff">賽事管理</a>
-            <a href="#player" data-open-role="player" data-player-tab="player-entry">隊伍面板</a>
-            <a href="#staff-score" data-open-role="staff" data-staff-tab="staff-checkin">計分中心</a>
+            <span class="dropdown-label">快速找比賽</span>
+            <a href="#events" data-event-filter="open">報名中的比賽</a>
+            <a href="#events" data-event-filter="upcoming">即將開始的比賽</a>
+            <a href="#live">今日賽況</a>
           </div>
         </div>
       </div>
@@ -145,6 +145,13 @@
           <p class="section-kicker">帳號登入 · 觀眾免登入</p>
           <h2 id="loginTitle">登入 BlueCourt</h2>
           <p class="modal-copy" id="loginDescription">登入後查看個人報名狀態、隊伍資訊和下一場賽程。</p>
+          <section class="quick-login" aria-labelledby="quickLoginTitle">
+            <h3 id="quickLoginTitle">快速登入</h3>
+            <button class="social-login-button" type="button" data-social-login="LINE" aria-describedby="socialLoginStatus"><span class="social-login-mark line-mark" aria-hidden="true">LINE</span><span>使用 LINE 繼續</span><small>即將開放</small></button>
+            <button class="social-login-button" type="button" data-social-login="Google" aria-describedby="socialLoginStatus"><span class="social-login-mark google-mark" aria-hidden="true">G</span><span>使用 Google 繼續</span><small>即將開放</small></button>
+            <p id="socialLoginStatus" class="social-login-status" role="status" aria-live="polite">其他帳號連動即將開放，目前可使用電子郵件登入或註冊。</p>
+          </section>
+          <div class="login-divider"><span>或使用電子郵件登入</span></div>
           <form id="loginForm">
             <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
             <label class="form-field">密碼<input type="password" name="password" placeholder="輸入密碼" minlength="8" required /></label>
@@ -172,8 +179,11 @@
     </div>
 
     <script src="demo-data.js"></script>
+    <script src="registration-forms.js"></script>
     <script src="competition.js"></script>
     <script src="workspace-views.js"></script>
+    <script src="registration-form-views.js"></script>
+    <script src="form-editor.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

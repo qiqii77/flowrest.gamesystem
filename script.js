@@ -11,10 +11,12 @@ let activeGroup = '',
   modalAction = null,
   modalReturnFocus = null;
 let publicTab = 'live';
+let previewSchemaConfig = null;
 const tabSets = {
   admin: [
     ['events', '賽事管理'],
     ['create', '賽事登錄'],
+    ['forms', '表單管理'],
     ['users', '使用者管理'],
     ['profile', '個人資料'],
   ],
@@ -23,6 +25,7 @@ const tabSets = {
     ['changes', '賽事更動'],
     ['review', '報名審核'],
     ['personnel', '人員管理'],
+    ['forms', '表單管理'],
     ['profile', '個人資料'],
   ],
   referee: [
@@ -100,7 +103,8 @@ function renderWorkspace() {
   const managed = app.managedEvents();
   if (!managed.some((e) => e.id === activeEvent)) activeEvent = managed[0]?.id || '';
   const needPicker =
-    (role === 'manager' && activeTab !== 'profile') || (role === 'admin' && activeTab === 'events');
+    (role === 'manager' && activeTab !== 'profile') ||
+    (role === 'admin' && ['events', 'forms'].includes(activeTab));
   let content = '';
   if (activeTab === 'profile') content = profileView();
   else if (role === 'player')
@@ -114,13 +118,21 @@ function renderWorkspace() {
     else {
       const e = app.event(activeEvent);
       content = (
-        { overview: eventSummary, changes: matchChanges, review: registrationList, personnel }[
-          activeTab
-        ] || eventSummary
+        {
+          overview: eventSummary,
+          changes: matchChanges,
+          review: registrationList,
+          personnel,
+          forms: formManagementView,
+        }[activeTab] || eventSummary
       )(e);
     }
   } else if (role === 'admin') {
     if (activeTab === 'create') content = adminEventForm();
+    if (activeTab === 'forms')
+      content = managed.length
+        ? formManagementView(app.event(activeEvent))
+        : empty('請先建立賽事。');
     if (activeTab === 'users') {
       if (!['accounts', 'assignments'].includes(activeSubtab)) activeSubtab = 'accounts';
       content = subnav([
@@ -163,6 +175,8 @@ function renderWorkspace() {
       )
       .join('')}</nav>
     ${needPicker && managed.length ? '<div class="event-picker-row">' + eventPicker(managed) + '</div>' : ''}<section class="workspace-panel active" id="currentPanel">${content}</section>`;
+  const editor = document.querySelector('[data-form=registration-settings]');
+  if (editor) refreshSchemaOutline(editor);
 }
 function subnav(items) {
   return `<nav class="workspace-subnav" aria-label="細項功能">${items.map(([key, label]) => button(label, 'subtab', `data-tab="${key}" aria-pressed="${key === activeSubtab}"`)).join('')}</nav>`;
@@ -248,6 +262,8 @@ function refresh() {
   if (view === 'enrollment') renderEnrollment();
 }
 function modal({ title, description, body = '', primary = '', action = null }) {
+  $('actionModal').removeAttribute('data-review-entry');
+  previewSchemaConfig = null;
   modalReturnFocus = document.activeElement;
   $('actionModalTitle').textContent = title;
   $('actionModalBody').innerHTML = `<p>${h(description)}</p>${body}`;
@@ -259,6 +275,8 @@ function modal({ title, description, body = '', primary = '', action = null }) {
   $('actionModal').querySelector('input, select, button').focus();
 }
 function closeModal() {
+  $('actionModal').removeAttribute('data-review-entry');
+  previewSchemaConfig = null;
   $('actionModal').hidden = true;
   modalAction = null;
   document.body.classList.remove('modal-open');
@@ -275,6 +293,7 @@ function openLogin() {
     ? '登入後將繼續填寫剛剛選定賽事的報名資料。還沒有帳號？請先註冊。'
     : '使用電子郵件與密碼登入，系統會依帳號權限進入你的介面。';
   $('loginError').textContent = '';
+  $('socialLoginStatus').textContent = '其他帳號連動即將開放，目前可使用電子郵件登入或註冊。';
   $('loginModal').hidden = false;
   document.body.classList.add('modal-open');
   $('loginForm').elements.email.focus();
@@ -338,6 +357,10 @@ function renderEnrollment() {
     return;
   }
   $('enrollmentContent').innerHTML = enrollmentView(e, app.current());
+  applyRegistrationConditions(
+    document.querySelector('[data-form=enrollment]'),
+    BlueCourtForms.getConfig(e),
+  );
 }
 function finalConfirmation(mid) {
   const m = app.match(mid),
@@ -387,6 +410,110 @@ async function runCommand(buttonElement) {
       publicTab = 'schedule';
       setView('public');
       renderPublic();
+      break;
+    case 'select-schema-field':
+      refreshSchemaOutline(b.closest('form'), b.dataset.field);
+      break;
+    case 'schema-panel':
+      refreshSchemaOutline(
+        b.closest('form'),
+        b.closest('[data-schema-row]').dataset.fieldId,
+        b.dataset.panel,
+      );
+      break;
+    case 'add-schema-field': {
+      const form = b.closest('form'),
+        fields = form.querySelector('#schemaFields'),
+        draft = readRegistrationSettings(form);
+      if (fields.children.length >= 40) throw new Error('最多可設定 40 個題目。');
+      const id = 'extra_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20),
+        field = { id, label: '新題目', type: 'text', visible: true, required: false, options: [] };
+      draft.fields.push(field);
+      fields.insertAdjacentHTML(
+        'beforeend',
+        schemaFieldRow(field, draft.fields.length - 1, draft.fields),
+      );
+      refreshSchemaOutline(form, id, 'content');
+      fields.lastElementChild.querySelector('.schema-label').focus();
+      break;
+    }
+    case 'duplicate-schema-field': {
+      const form = b.closest('form'),
+        draft = readRegistrationSettings(form),
+        row = b.closest('[data-schema-row]');
+      if (draft.fields.length >= 40) throw new Error('最多可設定 40 個題目。');
+      const index = draft.fields.findIndex((f) => f.id === row.dataset.fieldId),
+        field = structuredClone(draft.fields[index]);
+      field.id = 'extra_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20);
+      field.label = field.label.slice(0, 74) + '（副本）';
+      draft.fields.splice(index + 1, 0, field);
+      row.insertAdjacentHTML('afterend', schemaFieldRow(field, index + 1, draft.fields));
+      refreshSchemaOutline(form, field.id, 'content');
+      break;
+    }
+    case 'remove-schema-field': {
+      const form = b.closest('form');
+      b.closest('[data-schema-row]').remove();
+      refreshSchemaOutline(form);
+      break;
+    }
+    case 'move-schema-up':
+    case 'move-schema-down': {
+      const form = b.closest('form'),
+        row = b.closest('[data-schema-row]');
+      if (command === 'move-schema-up' && row.previousElementSibling)
+        row.previousElementSibling.before(row);
+      if (command === 'move-schema-down' && row.nextElementSibling)
+        row.nextElementSibling.after(row);
+      refreshSchemaOutline(form, row.dataset.fieldId);
+      break;
+    }
+    case 'add-condition': {
+      const form = b.closest('form'),
+        row = b.closest('[data-schema-row]'),
+        rules = row.querySelector('.condition-rules'),
+        draft = readRegistrationSettings(form);
+      if (rules.children.length >= 8) throw new Error('每題最多 8 個顯示條件。');
+      rules.insertAdjacentHTML(
+        'beforeend',
+        conditionRuleRow(
+          {
+            source: 'field',
+            fieldId: 'group',
+            operator: 'eq',
+            value: app.event(form.dataset.event).groups[0],
+          },
+          draft.fields,
+          row.dataset.fieldId,
+        ),
+      );
+      refreshSchemaOutline(form, row.dataset.fieldId, 'conditions');
+      break;
+    }
+    case 'remove-condition':
+      b.closest('[data-condition-rule]').remove();
+      break;
+    case 'preview-schema': {
+      const form = b.closest('form'),
+        draft = BlueCourtForms.sanitizeConfig(readRegistrationSettings(form));
+      modal({
+        title: '報名表預覽',
+        description: '可試填題目，檢查顯示條件；不會送出報名。',
+        body:
+          '<div class="schema-preview">' +
+          enrollmentFields(
+            { ...app.event(form.dataset.event), groups: draft.groups },
+            app.current(),
+            draft,
+          ) +
+          '</div>',
+      });
+      previewSchemaConfig = draft;
+      applyRegistrationConditions(document.querySelector('.schema-preview'), draft);
+      break;
+    }
+    case 'open-registration':
+      openRegistrationDetails(b.dataset.entry);
       break;
     case 'group-filter':
       activeGroup = b.dataset.group;
@@ -459,6 +586,8 @@ async function runCommand(buttonElement) {
       break;
     case 'review':
       app.review(b.dataset.entry, b.dataset.status);
+      if ($('actionModal').dataset.reviewEntry === b.dataset.entry)
+        openRegistrationDetails(b.dataset.entry);
       notice('審核狀態已更新。');
       break;
     case 'status':
@@ -544,15 +673,49 @@ document.addEventListener('click', (event) => {
 document.addEventListener('change', (event) => {
   try {
     const el = event.target;
+    if (el.classList.contains('condition-enabled')) {
+      const row = el.closest('[data-schema-row]');
+      row.querySelector('.condition-settings').hidden = !el.checked;
+      if (el.checked && !row.querySelector('[data-condition-rule]'))
+        row.querySelector('[data-command=add-condition]').click();
+    }
+    if (
+      el.closest('[data-condition-rule]') &&
+      ['condition-source', 'condition-operator'].some((c) => el.classList.contains(c))
+    )
+      updateConditionRule(el.closest('[data-condition-rule]'));
+    if (el.classList.contains('schema-type'))
+      el.closest('[data-schema-row]').querySelector('.schema-option-field').hidden =
+        el.value !== 'select';
+    if (el.classList.contains('schema-visible') && !el.checked)
+      el.closest('[data-schema-row]').querySelector('.schema-required').checked = false;
+    if (el.classList.contains('schema-required') && el.checked)
+      el.closest('[data-schema-row]').querySelector('.schema-visible').checked = true;
+    if (el.name === 'paymentMode')
+      el.closest('form').querySelector('[data-payment-details]').hidden = el.value !== 'planned';
     if (el.id === 'event-select') {
       activeEvent = el.value;
       renderWorkspace();
     }
+    if (el.closest('[data-form=registration-settings]')) refreshSchemaOutline(el.closest('form'));
+    updateApplicantConditionUI(el);
     if (el.dataset.checkin) app.checkin(el.dataset.checkin, el.dataset.side, el.checked);
   } catch (error) {
     handleError(error);
     refresh();
   }
+});
+function updateApplicantConditionUI(target) {
+  const form = target.closest('[data-form=enrollment]');
+  if (form)
+    applyRegistrationConditions(form, BlueCourtForms.getConfig(app.event(form.dataset.event)));
+  const preview = target.closest('.schema-preview');
+  if (preview && previewSchemaConfig) applyRegistrationConditions(preview, previewSchemaConfig);
+}
+document.addEventListener('input', (event) => {
+  const target = event.target;
+  updateApplicantConditionUI(target);
+  if (target.classList.contains('schema-label')) refreshSchemaOutline(target.closest('form'));
 });
 document.addEventListener('submit', (event) => {
   const form = event.target;
@@ -561,6 +724,10 @@ document.addEventListener('submit', (event) => {
   const data = Object.fromEntries(new FormData(form));
   try {
     switch (form.dataset.form) {
+      case 'registration-settings':
+        app.saveRegistrationForm(form.dataset.event, readRegistrationSettings(form));
+        notice('表單設定已儲存，報名頁已同步更新。');
+        break;
       case 'stream':
         app.updateStream(form.dataset.event, data.streamUrl);
         notice('直播網址已更新。');
@@ -634,15 +801,16 @@ $('menuToggle').addEventListener('click', () => {
 document.querySelectorAll('.nav-link,.nav-dropdown a').forEach((link) =>
   link.addEventListener('click', (event) => {
     event.preventDefault();
-    const role = link.dataset.openRole;
-    if (role) {
-      if (app.current() && pendingEnrollment) openEnrollment(pendingEnrollment);
-      else if (app.current()) showWorkspace();
-      else if (pendingEnrollment) openLogin();
-      else openLogin(role === 'player' ? 'player' : 'staff');
-      return;
-    }
     setView('home');
+    if (link.dataset.eventFilter) {
+      activeFilter = link.dataset.eventFilter;
+      renderHome();
+      document
+        .querySelectorAll('[data-filter]')
+        .forEach((button) =>
+          button.classList.toggle('active', button.dataset.filter === activeFilter),
+        );
+    }
     document.querySelector(link.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
   }),
 );
@@ -679,6 +847,12 @@ $('registrationBrandHome').addEventListener('click', (event) => {
 });
 $('showRegister').addEventListener('click', openRegister);
 $('registrationLogin').addEventListener('click', () => openLogin());
+document.querySelectorAll('[data-social-login]').forEach((button) => {
+  button.addEventListener('click', () => {
+    $('socialLoginStatus').textContent =
+      button.dataset.socialLogin + ' 帳號連動尚未開放，請先使用電子郵件登入或註冊。';
+  });
+});
 $('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget,
@@ -782,12 +956,32 @@ window.addEventListener('storage', (event) => {
           match: form.dataset.match,
           event: form.dataset.event,
           values: Object.fromEntries(new FormData(form)),
+          schema:
+            form.dataset.form === 'registration-settings' ? readRegistrationSettings(form) : null,
+          selectedField: form.dataset.selectedField,
+          editorPanel: form.dataset.editorPanel,
+          schemaFocus: focused.closest('[data-schema-row]')
+            ? {
+                id: focused.closest('[data-schema-row]').dataset.fieldId,
+                kind: [
+                  'schema-label',
+                  'schema-type',
+                  'schema-options',
+                  'schema-visible',
+                  'schema-required',
+                ].find((key) => focused.classList.contains(key)),
+              }
+            : null,
           focus: focused.name,
           start: focused.selectionStart,
           end: focused.selectionEnd,
         }
       : null;
     app.load();
+    if ($('actionModal').dataset.reviewEntry) {
+      const entry = app.db.entries.find((r) => r.id === $('actionModal').dataset.reviewEntry);
+      if (!entry || !app.canManage(entry.eventId)) closeModal();
+    }
     refresh();
     if (draft && app.current()?.id === oldUser && app.role() === oldRole) {
       const nextForm = [...document.querySelectorAll('form[data-form]')].find(
@@ -797,9 +991,32 @@ window.addEventListener('storage', (event) => {
           f.dataset.event === draft.event,
       );
       if (nextForm) {
+        if (draft.schema)
+          nextForm.querySelector('#schemaFields').innerHTML = draft.schema.fields
+            .map(schemaFieldRow)
+            .join('');
         for (const [key, value] of Object.entries(draft.values))
           if (nextForm.elements[key]) nextForm.elements[key].value = value;
-        const nextInput = nextForm.elements[draft.focus];
+        if (draft.schema) {
+          for (const checkbox of nextForm.querySelectorAll('[name=paymentMethods]'))
+            checkbox.checked = draft.schema.payment.methods.includes(checkbox.value);
+          nextForm.querySelector('[data-payment-details]').hidden =
+            draft.schema.payment.mode !== 'planned';
+          nextForm.elements.externalEnabled.checked = !!draft.schema.external?.enabled;
+          refreshSchemaOutline(
+            nextForm,
+            draft.schemaFocus?.id || draft.selectedField,
+            draft.editorPanel,
+          );
+        }
+        const nextInput = draft.schemaFocus?.kind
+          ? nextForm.querySelector(
+              '[data-field-id="' +
+                CSS.escape(draft.schemaFocus.id) +
+                '"] .' +
+                draft.schemaFocus.kind,
+            )
+          : nextForm.elements[draft.focus];
         nextInput?.focus();
         if (nextInput && draft.start !== null && ['text', 'tel', 'search'].includes(nextInput.type))
           nextInput.setSelectionRange(draft.start, draft.end);
@@ -836,6 +1053,10 @@ window.setInterval(() => {
     app.expireRegistrations();
     renderHome();
     if (view === 'public') renderPublic();
+    if (view === 'enrollment')
+      updateApplicantConditionUI(document.querySelector('[data-form=enrollment]'));
+    if (previewSchemaConfig)
+      applyRegistrationConditions(document.querySelector('.schema-preview'), previewSchemaConfig);
   } catch (error) {
     handleError(error);
   }
@@ -846,6 +1067,10 @@ document.addEventListener('visibilitychange', () => {
       app.expireRegistrations();
       renderHome();
       if (view === 'public') renderPublic();
+      if (view === 'enrollment')
+        updateApplicantConditionUI(document.querySelector('[data-form=enrollment]'));
+      if (previewSchemaConfig)
+        applyRegistrationConditions(document.querySelector('.schema-preview'), previewSchemaConfig);
     } catch (error) {
       handleError(error);
     }

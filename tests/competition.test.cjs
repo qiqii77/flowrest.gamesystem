@@ -530,3 +530,322 @@ test('external livestream URL settings are event-scoped and reject non-web desti
   app.storage.setItem(SESSION, 'referee');
   assert.throws(() => app.updateStream('badminton', 'https://www.youtube.com/'), /沒有這場賽事/);
 });
+
+const Forms = require('../registration-forms.js');
+test('form management is scoped to the event and preserves all existing competition groups', () => {
+  const app = setup('manager'),
+    draft = Forms.getConfig(app.event('badminton'));
+  assert.throws(() => app.saveRegistrationForm('tennis', draft), /沒有這場賽事/);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(() => app.saveRegistrationForm('badminton', draft), /沒有這場賽事/);
+  app.storage.setItem(SESSION, 'manager');
+  draft.groups = ['男子單打'];
+  assert.throws(() => app.saveRegistrationForm('badminton', draft), /不能移除或改名/);
+  draft.groups = [...app.event('badminton').groups, '新項目'];
+  app.saveRegistrationForm('badminton', draft);
+  assert(app.event('badminton').groups.includes('新項目'));
+});
+test('custom required select and checkbox fields are enforced and stored with an immutable answer snapshot', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('volleyball'));
+  draft.fields.push(
+    {
+      id: 'extra_size',
+      label: '衣服尺寸',
+      type: 'select',
+      visible: true,
+      required: true,
+      options: ['S', 'M'],
+    },
+    { id: 'extra_agree', label: '同意比賽規章', type: 'checkbox', visible: true, required: true },
+  );
+  app.saveRegistrationForm('volleyball', draft);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(() => app.enroll('volleyball', { group: '公開組', team: 'A' }), /衣服尺寸/);
+  assert.throws(
+    () =>
+      app.enroll('volleyball', { group: '公開組', team: 'A', extra_size: 'XL', extra_agree: 'on' }),
+    /有效選項/,
+  );
+  assert.throws(
+    () => app.enroll('volleyball', { group: '公開組', team: 'A', extra_size: 'M' }),
+    /同意比賽規章/,
+  );
+  app.enroll('volleyball', {
+    group: '公開組',
+    team: 'A',
+    extra_size: 'M',
+    extra_agree: 'on',
+    formRevision: 1,
+  });
+  const entry = app.db.entries.find((r) => r.eventId === 'volleyball' && r.userId === 'player');
+  assert.equal(entry.answers.find((a) => a.id === 'extra_size').value, 'M');
+  assert.equal(entry.answers.find((a) => a.id === 'extra_agree').value, true);
+  app.storage.setItem(SESSION, 'admin');
+  const revised = Forms.getConfig(app.event('volleyball'));
+  revised.fields = revised.fields.filter((f) => f.id !== 'extra_size');
+  app.saveRegistrationForm('volleyball', revised);
+  const saved = app.db.entries.find((r) => r.id === entry.id);
+  assert.equal(saved.answers.find((a) => a.id === 'extra_size').label, '衣服尺寸');
+  assert.equal(saved.formSnapshot.revision, 1);
+});
+test('optional hidden contact fields are omitted while identity fields remain required', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('tennis'));
+  for (const f of draft.fields)
+    if (!f.locked) {
+      f.visible = false;
+      f.required = false;
+    }
+  draft.fields.find((f) => f.id === 'name').visible = false;
+  draft.fields.find((f) => f.id === 'name').required = false;
+  app.saveRegistrationForm('tennis', draft);
+  const config = Forms.getConfig(app.event('tennis'));
+  assert(config.fields.find((f) => f.id === 'name').required);
+  assert(config.fields.find((f) => f.id === 'name').visible);
+  app.storage.setItem(SESSION, 'player');
+  app.current().phone = '';
+  app.current().birthday = '';
+  app.save();
+  app.enroll('tennis', { group: '男子單打', team: 'A' });
+  const entry = app.db.entries.find((r) => r.userId === 'player' && r.eventId === 'tennis');
+  assert.deepEqual(
+    entry.answers.map((a) => a.id),
+    ['team', 'name'],
+  );
+});
+test('payment placeholders store the configured fee and preference without allowing paid status', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('tennis'));
+  draft.payment = {
+    mode: 'planned',
+    amount: 600,
+    methods: ['bank_transfer', 'line_pay'],
+    note: '等待主辦通知',
+  };
+  app.saveRegistrationForm('tennis', draft);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(
+    () => app.enroll('tennis', { group: '男子單打', team: 'A', paymentMethod: 'credit_card' }),
+    /有效的預留/,
+  );
+  app.enroll('tennis', {
+    group: '男子單打',
+    team: 'A',
+    paymentMethod: 'bank_transfer',
+    paymentStatus: 'paid',
+    paymentAmount: 1,
+  });
+  const payment = app.db.entries.find(
+    (r) => r.userId === 'player' && r.eventId === 'tennis',
+  ).payment;
+  assert.equal(payment.amount, 600);
+  assert.equal(payment.status, 'not_connected');
+  assert.equal(payment.method, 'bank_transfer');
+});
+test('old editor and application versions cannot overwrite changed form settings', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('tennis'));
+  app.saveRegistrationForm('tennis', draft);
+  assert.throws(() => app.saveRegistrationForm('tennis', draft), /設定已更新/);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(
+    () => app.enroll('tennis', { group: '男子單打', team: 'A', formRevision: 0 }),
+    /報名表已更新/,
+  );
+  assert(!app.db.entries.some((r) => r.userId === 'player' && r.eventId === 'tennis'));
+});
+test('form settings reject invalid custom identifiers, empty select options and incomplete payment plans', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('tennis'));
+  draft.fields.push({ id: 'admin', label: 'Invalid', type: 'text', visible: true });
+  assert.throws(() => app.saveRegistrationForm('tennis', draft), /識別碼/);
+  draft.fields.at(-1).id = 'extra_choice';
+  draft.fields.at(-1).type = 'select';
+  draft.fields.at(-1).options = [];
+  assert.throws(() => app.saveRegistrationForm('tennis', draft), /選單/);
+  draft.fields.pop();
+  draft.payment = { mode: 'planned', amount: 0, methods: [] };
+  assert.throws(() => app.saveRegistrationForm('tennis', draft), /正整數/);
+});
+test('free registration and numeric custom fields validate without changing default account privileges', () => {
+  const app = setup('admin'),
+    draft = Forms.getConfig(app.event('tennis'));
+  draft.fields.push({
+    id: 'extra_count',
+    label: '隨行人數',
+    type: 'number',
+    visible: true,
+    required: true,
+  });
+  app.saveRegistrationForm('tennis', draft);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(
+    () => app.enroll('tennis', { group: '男子單打', team: 'A', extra_count: 'no' }),
+    /有效數字/,
+  );
+  app.enroll('tennis', { group: '男子單打', team: 'A', extra_count: '2' });
+  const entry = app.db.entries.find((r) => r.userId === 'player' && r.eventId === 'tennis');
+  assert.equal(entry.answers.find((a) => a.id === 'extra_count').value, 2);
+  assert.equal(entry.payment.status, 'not_required');
+  assert.equal(app.role(), 'player');
+});
+
+function conditionDraft(event) {
+  const config = Forms.getConfig(event);
+  config.fields.push(
+    {
+      id: 'extra_member',
+      label: '是否為校友',
+      type: 'select',
+      options: ['是', '否'],
+      visible: true,
+      required: false,
+    },
+    {
+      id: 'extra_school',
+      label: '畢業學校',
+      type: 'text',
+      visible: true,
+      required: true,
+      condition: {
+        enabled: true,
+        match: 'all',
+        effect: 'show',
+        rules: [{ source: 'field', fieldId: 'extra_member', operator: 'eq', value: '是' }],
+      },
+    },
+  );
+  return config;
+}
+test('conditional required fields validate only when shown and forged hidden answers are excluded', () => {
+  const app = setup('admin');
+  app.saveRegistrationForm('tennis', conditionDraft(app.event('tennis')));
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(
+    () => app.enroll('tennis', { group: '男子單打', team: 'A', extra_member: '是' }),
+    /畢業學校/,
+  );
+  app.enroll('tennis', {
+    group: '男子單打',
+    team: 'A',
+    extra_member: '否',
+    extra_school: '不可保存的隱藏答案',
+  });
+  const entry = app.db.entries.find((r) => r.eventId === 'tennis' && r.userId === 'player');
+  assert(!entry.answers.some((a) => a.id === 'extra_school'));
+});
+test('condition groups support AND OR and inverse hide behavior', () => {
+  const app = setup(),
+    config = conditionDraft(app.event('tennis'));
+  const field = config.fields.at(-1);
+  field.condition.rules.push({
+    source: 'field',
+    fieldId: 'group',
+    operator: 'eq',
+    value: '女子單打',
+  });
+  const parsed = Forms.sanitizeConfig(config);
+  assert.equal(
+    Forms.visibleFields(parsed, { group: '男子單打', extra_member: '是' }).extra_school,
+    false,
+  );
+  parsed.fields.at(-1).condition.match = 'any';
+  assert.equal(
+    Forms.visibleFields(parsed, { group: '男子單打', extra_member: '是' }).extra_school,
+    true,
+  );
+  parsed.fields.at(-1).condition.effect = 'hide';
+  assert.equal(
+    Forms.visibleFields(parsed, { group: '男子單打', extra_member: '是' }).extra_school,
+    false,
+  );
+});
+test('hidden parents cannot expose dependent fields through stale answers', () => {
+  const app = setup(),
+    config = conditionDraft(app.event('tennis'));
+  config.fields.find((f) => f.id === 'extra_member').visible = false;
+  config.fields.push({
+    id: 'extra_more',
+    label: '詳細說明',
+    type: 'text',
+    visible: true,
+    required: true,
+    condition: {
+      enabled: true,
+      match: 'all',
+      effect: 'show',
+      rules: [{ source: 'field', fieldId: 'extra_school', operator: 'filled', value: '' }],
+    },
+  });
+  const parsed = Forms.sanitizeConfig(config),
+    visibility = Forms.visibleFields(parsed, { extra_member: '是', extra_school: '舊答案' });
+  assert.equal(visibility.extra_school, false);
+  assert.equal(visibility.extra_more, false);
+});
+test('conditions reject forward/self references, missing sources and identity-field conditions', () => {
+  const app = setup(),
+    config = conditionDraft(app.event('tennis'));
+  config.fields.at(-1).condition.rules[0].fieldId = 'extra_school';
+  assert.throws(() => Forms.sanitizeConfig(config), /前面題目/);
+  config.fields.at(-1).condition.rules[0].fieldId = 'extra_missing';
+  assert.throws(() => Forms.sanitizeConfig(config), /前面題目/);
+  config.fields.at(-1).condition.rules[0].fieldId = 'extra_member';
+  config.fields.find((f) => f.id === 'name').condition = config.fields.at(-1).condition;
+  assert.throws(() => Forms.sanitizeConfig(config), /不能設定顯示條件/);
+});
+test('time conditions use Taiwan time and checkbox false conditions agree with omitted unchecked form values', () => {
+  const app = setup(),
+    config = conditionDraft(app.event('tennis'));
+  config.fields.at(-1).condition.rules = [
+    { source: 'time', operator: 'after', value: '2026-11-14T12:00' },
+  ];
+  const parsed = Forms.sanitizeConfig(config);
+  assert.equal(
+    Forms.visibleFields(parsed, {}, new Date('2026-11-14T03:59:00Z')).extra_school,
+    false,
+  );
+  assert.equal(
+    Forms.visibleFields(parsed, {}, new Date('2026-11-14T04:00:00Z')).extra_school,
+    true,
+  );
+  config.fields.find((f) => f.id === 'extra_member').type = 'checkbox';
+  config.fields.at(-1).condition.rules = [
+    { source: 'field', fieldId: 'extra_member', operator: 'eq', value: 'false' },
+  ];
+  const checkbox = Forms.sanitizeConfig(config);
+  assert.equal(Forms.visibleFields(checkbox, {}).extra_school, true);
+  assert.equal(Forms.visibleFields(checkbox, { extra_member: 'on' }).extra_school, false);
+});
+test('external system links are validated, snapshotted and do not change payment state', () => {
+  const app = setup('admin'),
+    config = Forms.getConfig(app.event('tennis'));
+  config.external = {
+    enabled: true,
+    name: '外部繳費平台',
+    purpose: 'payment',
+    url: 'javascript:alert(1)',
+    note: '',
+  };
+  assert.throws(() => app.saveRegistrationForm('tennis', config), /有效/);
+  config.external.url = 'https://example.com/payment';
+  app.saveRegistrationForm('tennis', config);
+  app.storage.setItem(SESSION, 'player');
+  app.enroll('tennis', { group: '男子單打', team: 'A' });
+  const entry = app.db.entries.find((r) => r.userId === 'player' && r.eventId === 'tennis');
+  assert.equal(entry.formSnapshot.external.url, 'https://example.com/payment');
+  assert.equal(entry.payment.status, 'not_required');
+});
+test('review details enforce event scope and omit password hashes and salts', () => {
+  const app = setup('manager');
+  const detail = app.registrationDetails('entry-a');
+  assert.equal(detail.entry.team, '王立晨');
+  assert(!('hash' in detail.user));
+  assert(!('salt' in detail.user));
+  detail.entry.team = 'changed';
+  assert.equal(app.db.entries.find((r) => r.id === 'entry-a').team, '王立晨');
+  const foreign = app.db.entries.find((r) => r.eventId === 'volleyball');
+  assert.throws(() => app.registrationDetails(foreign.id), /沒有這場賽事/);
+  app.storage.setItem(SESSION, 'player');
+  assert.throws(() => app.registrationDetails('entry-a'), /沒有這場賽事/);
+});

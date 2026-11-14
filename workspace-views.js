@@ -102,12 +102,64 @@ function registrationList(e) {
     heading('報名審核', e.name) +
     (entries
       .map((r) => {
-        const u = app.db.users.find((u) => u.id === r.userId);
-        return `<article class="competition-card"><div class="competition-card-head"><div><strong>${h(r.team)}</strong><p>${h(r.group)} · ${h(u?.name)} · ${h(u?.email)}</p><p>聯絡電話：${h(u?.phone)}</p></div><span>${h({ pending: '待審核', approved: '已核准', rejected: '未通過' }[r.status])}</span></div>
-      ${!e.scheduled ? `<div class="inline-actions">${button('核准', 'review', `data-entry="${h(r.id)}" data-status="approved"`)}${button('不通過', 'review', `data-entry="${h(r.id)}" data-status="rejected"`)}</div>` : '<p class="muted-copy">賽程已產生，請至賽事更動處理。</p>'}</article>`;
+        const user = app.db.users.find((u) => u.id === r.userId);
+        return `<article class="competition-card review-summary-card">
+      <button type="button" class="review-card-open" data-command="open-registration" data-entry="${h(r.id)}" aria-haspopup="dialog" aria-label="開啟 ${h(r.team)} 的完整報名資料">
+        <span><strong>${h(r.team)}</strong><span>${h(r.group)} · ${h(r.contact?.name || user?.name)} · ${h(user?.email)}</span></span>
+        <span class="review-card-status">${h({ pending: '待審核', approved: '已核准', rejected: '未通過' }[r.status])}<small>查看完整資料 →</small></span>
+      </button>
+      ${!e.scheduled ? `<div class="inline-actions review-card-actions">${button('核准', 'review', `data-entry="${h(r.id)}" data-status="approved"`)}${button('不通過', 'review', `data-entry="${h(r.id)}" data-status="rejected"`)}</div>` : '<p class="muted-copy review-card-actions">賽程已產生，請至賽事更動處理。</p>'}</article>`;
       })
       .join('') || empty('目前沒有報名資料。'))
   );
+}
+function registrationDetailBody(data) {
+  const { entry: r, event: e, user } = data,
+    contact = r.contact || user;
+  const value = (v) =>
+    typeof v === 'boolean'
+      ? v
+        ? '已勾選'
+        : '未勾選'
+      : v === null || v === undefined || v === ''
+        ? '未填寫'
+        : String(v);
+  const rows = r.answers?.length
+    ? r.answers
+    : [
+        ['name', '姓名'],
+        ['phone', '聯絡電話'],
+        ['birthday', '出生日期'],
+        ['gender', '性別'],
+        ['address', '聯絡地址'],
+        ['emergencyName', '緊急聯絡人'],
+        ['emergencyPhone', '緊急聯絡電話'],
+      ].map(([id, label]) => ({ label, value: contact[id] }));
+  const payment = r.payment;
+  return `<section class="registration-detail">
+    <div class="review-detail-meta"><span>${h(r.group)}</span><strong>${h({ pending: '待審核', approved: '已核准', rejected: '未通過' }[r.status])}</strong></div>
+    <p>選手／隊伍：${h(r.team)}</p><p>登入電子郵件：${h(user.email || '未提供')}</p>
+    ${r.submittedAt ? '<p>報名時間：' + h(new Date(r.submittedAt).toLocaleString('zh-TW')) + '</p>' : ''}
+    <h3>完整報名資料</h3><dl class="registration-detail-answers">${rows.map((a) => `<div><dt>${h(a.label)}</dt><dd>${h(value(a.value))}</dd></div>`).join('')}</dl>
+    <h3>繳費資訊</h3><p>${payment?.mode === 'planned' ? '報名費 NT$ ' + payment.amount + ' · 預留方式：' + h(BlueCourtForms.paymentMethods[payment.method] || '尚未選擇') + ' · 尚未開放付款' : '免費報名'}</p>
+    ${payment?.note ? '<p>' + h(payment.note) + '</p>' : ''}
+    ${externalSystemLink(r.formSnapshot?.external)}
+    <p class="muted-copy">${r.formSnapshot ? '報名表版本：' + r.formSnapshot.revision : '此筆為示範／舊版報名資料。'}</p>
+    ${!e.scheduled ? `<div class="inline-actions">${button('核准', 'review', `data-entry="${h(r.id)}" data-status="approved"`, 'primary-button')}${button('不通過', 'review', `data-entry="${h(r.id)}" data-status="rejected"`)}</div>` : '<p class="notice">賽程已產生，請透過賽事更動處理異動。</p>'}
+  </section>`;
+}
+function openRegistrationDetails(entryId) {
+  const data = app.registrationDetails(entryId);
+  modal({
+    title: '報名資料 · ' + data.entry.team,
+    description: data.event.name,
+    body: registrationDetailBody(data),
+  });
+  $('actionModal').dataset.reviewEntry = entryId;
+  modalReturnFocus =
+    document.querySelector(
+      '[data-command="open-registration"][data-entry="' + CSS.escape(entryId) + '"]',
+    ) || modalReturnFocus;
 }
 function personnel(e) {
   const matches = app.db.matches.filter((m) => m.eventId === e.id);
@@ -227,7 +279,7 @@ function playerEntries() {
     (entries
       .map((r) => {
         const e = app.event(r.eventId);
-        return `<article class="competition-card"><div class="competition-card-head"><div><strong>${h(e.name)}</strong><p>${h(r.group)} · ${h(r.team)}</p></div><span>${h({ pending: '報名成功 · 待審核', approved: '報名已核准', rejected: '審核未通過' }[r.status])}</span></div><p>${h(e.date)} · ${h(e.location)}</p></article>`;
+        return `<article class="competition-card"><div class="competition-card-head"><div><strong>${h(e.name)}</strong><p>${h(r.group)} · ${h(r.team)}</p></div><span>${h({ pending: '報名成功 · 待審核', approved: '報名已核准', rejected: '審核未通過' }[r.status])}</span></div><p>${h(e.date)} · ${h(e.location)}</p>${submittedAnswers(r)}</article>`;
       })
       .join('') || empty('尚未報名賽事。請到系統首頁選擇開放報名的比賽。')) +
     button('前往首頁尋找比賽', 'home-events')
@@ -330,27 +382,12 @@ function adminAssignments() {
 }
 
 function enrollmentView(e, u) {
+  const config = BlueCourtForms.getConfig(e);
   return `${heading('報名 ' + e.name, e.date + ' · ' + e.location)}
-    <p class="muted-copy">填寫本次報名資料。聯絡資料會同步更新至個人資料，方便下次報名。</p>
+    <p class="muted-copy">填寫本次報名資料。標示 * 為必填，聯絡資料會同步至個人資料。</p>
     <form class="workflow-form enrollment-form" data-form="enrollment" data-event="${h(e.id)}">
-      <h3>競賽項目與參賽資料</h3>
-      <label class="form-field">報名項目<select name="group" required>${options(
-        e.groups.map((g) => [g, g]),
-        e.groups[0],
-      )}</select></label>
-      ${field('選手／隊伍名稱', 'team', u.name, 'text', 'required maxlength="120"')}
-      <h3>聯絡資料</h3>
-      <div class="form-grid">${field('姓名', 'name', u.name, 'text', 'required autocomplete="name"')}
-      ${field('聯絡電話', 'phone', u.phone, 'tel', 'required autocomplete="tel"')}
-      ${field('出生日期', 'birthday', u.birthday, 'date', 'required')}
-      <label class="form-field">性別<select name="gender">${options(
-        ['不透露', '男', '女', '其他'].map((v) => [v, v]),
-        u.gender,
-      )}</select></label>
-      ${field('緊急聯絡人', 'emergencyName', u.emergencyName, 'text', 'required')}
-      ${field('緊急聯絡電話', 'emergencyPhone', u.emergencyPhone, 'tel', 'required')}</div>
-      ${field('聯絡地址', 'address', u.address, 'text', 'autocomplete="street-address"')}
-      <p>登入電子郵件：${h(u.email)}</p>
+      <input name="formRevision" type="hidden" value="${config.revision}">
+      ${enrollmentFields(e, u, config)}
       <div class="inline-actions"><button class="primary-button" type="submit">確認送出報名</button>${button('返回賽事列表', 'cancel-enrollment')}</div>
     </form>`;
 }

@@ -212,12 +212,49 @@ async function login(role) {
     console.log(
       'PASS: Live-first home, event-card enrollment, three demo states, and date-only live scope.',
     );
+    assert.equal(
+      await evaluate("document.querySelectorAll('.nav-dropdown [data-open-role]').length"),
+      0,
+    );
+    await click('#menuToggle');
+    await click('.nav-dropdown [data-event-filter=open]');
+    assert.equal(await evaluate("document.querySelectorAll('#eventGrid .event-card').length"), 2);
+    await click('#menuToggle');
+    await click('.nav-dropdown [data-event-filter=upcoming]');
+    assert.equal(await evaluate("document.querySelectorAll('#eventGrid .event-card').length"), 1);
+    await click('[data-filter=all]');
+    console.log('PASS: redundant home management links removed; quick event filters work.');
     await click('[data-public-tab]');
     assert.equal(await evaluate('view'), 'public');
     console.log(
       'PASS: guest public schedule without login; unified account login without visible role choices.',
     );
 
+    await evaluate("setView('home');openLogin()");
+    assert.deepEqual(
+      await evaluate(
+        "[...document.querySelectorAll('[data-social-login]')].map(b=>b.dataset.socialLogin)",
+      ),
+      ['LINE', 'Google'],
+    );
+    assert.equal(await evaluate("document.getElementById('openProfile').textContent"), '個人中心');
+    await click('[data-social-login=LINE]');
+    assert(
+      await evaluate(
+        "document.getElementById('socialLoginStatus').textContent.includes('LINE 帳號連動尚未開放')",
+      ),
+    );
+    assert.equal(await evaluate('app.current()'), null);
+    await click('[data-social-login=Google]');
+    assert(
+      await evaluate(
+        "document.getElementById('socialLoginStatus').textContent.includes('Google 帳號連動尚未開放')",
+      ),
+    );
+    await evaluate('closeLogin()');
+    console.log(
+      'PASS: personal-center label, LINE/Google entries, and clear unavailable status without creating a session.',
+    );
     await login('referee');
     await click('[data-checkin][data-side=A]');
     await click('[data-checkin][data-side=B]');
@@ -298,6 +335,14 @@ async function login(role) {
     await click('[data-command=subtab][data-tab=assignments]');
     assert(await evaluate("!!document.querySelector('[data-form=manager]')"));
     console.log('PASS: admin all-event access and nested user/assignment navigation.');
+    await click('[data-command=tab][data-tab=forms]');
+    assert.equal(await evaluate("document.querySelector('#event-select').options.length"), 3);
+    assert(await evaluate("!!document.querySelector('[data-form=registration-settings]')"));
+    await click('[data-command=preview-schema]');
+    assert(
+      await evaluate("document.getElementById('actionModalBody').textContent.includes('繳費資訊')"),
+    );
+    await evaluate('closeModal()');
 
     await evaluate("app.logout();setView('home');refresh();openLogin()");
     await fill('#loginForm', {
@@ -316,6 +361,105 @@ async function login(role) {
       ),
     );
     console.log('PASS: dedicated upcoming-event manager can access only the volleyball event.');
+    await click('[data-command=tab][data-tab=forms]');
+    await fill('[data-form=registration-settings]', {
+      groups: '公開組、校友組',
+      paymentMode: 'planned',
+      paymentAmount: '600',
+      paymentNote: '繳費功能尚未開放，請等待主辦通知。',
+    });
+    await evaluate(
+      "document.querySelector('[name=paymentMode]').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[name=paymentMethods][value=bank_transfer]').checked=true",
+    );
+    await click('[data-command=add-schema-field]');
+    const customId = await evaluate(
+      "document.querySelector('#schemaFields').lastElementChild.dataset.fieldId",
+    );
+    await evaluate(
+      "(()=>{const r=document.querySelector('#schemaFields').lastElementChild;r.querySelector('.schema-label').value='衣服尺寸';const t=r.querySelector('.schema-type');t.value='select';t.dispatchEvent(new Event('change',{bubbles:true}));r.querySelector('.schema-options').value='S、M、L';r.querySelector('.schema-required').checked=true;})()",
+    );
+    await click('[data-command=add-schema-field]');
+    const branchId = await evaluate(
+      "document.querySelector('#schemaFields').lastElementChild.dataset.fieldId",
+    );
+    await evaluate(
+      "const row=document.querySelector('#schemaFields').lastElementChild;row.querySelector('.schema-label').value='隊伍補充資料';row.querySelector('.schema-type').value='textarea';row.querySelector('.schema-type').dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    await click('.schema-row.active [data-command=schema-panel][data-panel=answer]');
+    await click('.schema-row.active .schema-required');
+    await click('.schema-row.active [data-command=schema-panel][data-panel=conditions]');
+    await click('.schema-row.active .condition-enabled');
+    await evaluate("document.querySelector('.schema-row.active .condition-value').value='校友組'");
+    await click('.schema-row.active [data-command=add-condition]');
+    await evaluate(
+      "const rule=document.querySelector('.schema-row.active .condition-rules').lastElementChild;rule.querySelector('.condition-field').value=" +
+        JSON.stringify(customId) +
+        ";rule.querySelector('.condition-value').value='M'",
+    );
+    await fill('[data-form=registration-settings]', {
+      externalName: '示範繳費入口',
+      externalPurpose: 'payment',
+      externalUrl: 'https://example.com/payment',
+      externalNote: '依主辦說明處理，付款結果不會自動同步。',
+    });
+    await evaluate("document.querySelector('[name=externalEnabled]').checked=true");
+    assert(
+      await evaluate(
+        "document.querySelector('.schema-outline').textContent.includes('有顯示條件')",
+      ),
+    );
+    const conditionShot = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+    });
+    fs.writeFileSync(
+      path.join(profile, 'conditional-form-editor.png'),
+      Buffer.from(conditionShot.data, 'base64'),
+    );
+    await click('[data-command=preview-schema]');
+    assert(
+      await evaluate("document.getElementById('actionModalBody').textContent.includes('衣服尺寸')"),
+    );
+    assert.equal(
+      await evaluate(
+        "document.querySelector('.schema-preview [data-applicant-field=" + branchId + "]').hidden",
+      ),
+      true,
+    );
+    await evaluate(
+      "const group=document.querySelector('.schema-preview [name=group]');group.value='校友組';group.dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    assert.equal(
+      await evaluate(
+        "document.querySelector('.schema-preview [data-applicant-field=" + branchId + "]').hidden",
+      ),
+      true,
+    );
+    await evaluate(
+      "const sizeCheck1=document.querySelector('.schema-preview [name=" +
+        customId +
+        "]');sizeCheck1.value='M';sizeCheck1.dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    assert.equal(
+      await evaluate(
+        "document.querySelector('.schema-preview [data-applicant-field=" + branchId + "]').hidden",
+      ),
+      false,
+    );
+    assert.equal(
+      await evaluate("document.querySelector('.schema-preview .external-system a').target"),
+      '_blank',
+    );
+    assert.equal(await evaluate("BlueCourtForms.getConfig(app.event('volleyball')).revision"), 0);
+    await evaluate(
+      "closeModal();document.querySelector('[data-form=registration-settings]').requestSubmit()",
+    );
+    assert.equal(await evaluate("BlueCourtForms.getConfig(app.event('volleyball')).revision"), 1);
+    assert(await evaluate("app.event('volleyball').groups.includes('校友組')"));
+    console.log(
+      'PASS: admin form tab, event-scoped field editor, draft preview, custom required select, and reserved payment configuration.',
+    );
+
     await evaluate("app.logout();setView('home');refresh()");
     await click('[data-command=enroll][data-event=tennis]');
     assert.equal(await evaluate("document.getElementById('loginModal').hidden"), false);
@@ -324,6 +468,8 @@ async function login(role) {
     await until(
       "typeof app!=='undefined' && app.db && !document.getElementById('loginModal').hidden",
     );
+    assert.equal(await evaluate('pendingEnrollment'), 'tennis');
+    await click('[data-social-login=LINE]');
     assert.equal(await evaluate('pendingEnrollment'), 'tennis');
     await click('#showRegister');
     await fill('#registerForm', {
@@ -374,9 +520,125 @@ async function login(role) {
       'volleyball',
     );
     assert.equal(await evaluate("document.querySelector('[name=phone]').value"), '0912345678');
-    await click('[data-command=cancel-enrollment]');
+
+    assert(
+      await evaluate(
+        "document.getElementById('enrollmentContent').textContent.includes('衣服尺寸')",
+      ),
+    );
+    assert(
+      await evaluate(
+        "document.getElementById('enrollmentContent').textContent.includes('NT$ 600')",
+      ),
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[data-form=enrollment]').checkValidity()"),
+      false,
+    );
+    await fill('[data-form=enrollment]', {
+      group: '校友組',
+      [customId]: 'M',
+      paymentMethod: 'bank_transfer',
+    });
+    await evaluate(
+      "document.querySelector('[data-form=enrollment] [name=group]').dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[data-applicant-field=" + branchId + "]').hidden"),
+      false,
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[name=" + branchId + "]').required"),
+      true,
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[data-form=enrollment]').checkValidity()"),
+      false,
+    );
+    await fill('[data-form=enrollment]', {
+      [branchId]: '完整隊伍備註：第一行\n第二行，供管理員在審核視窗查看。',
+    });
+    await evaluate(
+      "const sizeCheck2=document.querySelector('[name=" +
+        customId +
+        "]');sizeCheck2.value='S';sizeCheck2.dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[name=" + branchId + "]').disabled"),
+      true,
+    );
+    await evaluate(
+      "const sizeCheck3=document.querySelector('[name=" +
+        customId +
+        "]');sizeCheck3.value='M';sizeCheck3.dispatchEvent(new Event('change',{bubbles:true}))",
+    );
+    assert.equal(
+      await evaluate("document.querySelector('[name=" + branchId + "]').disabled"),
+      false,
+    );
+    await evaluate("document.querySelector('[data-form=enrollment]').requestSubmit()");
+    await until("view==='workspace'");
+    assert(
+      await evaluate("document.getElementById('currentPanel').textContent.includes('衣服尺寸')"),
+    );
+    assert.equal(
+      await evaluate(
+        "app.db.entries.find(r=>r.userId===app.current().id&&r.eventId==='volleyball').payment.status",
+      ),
+      'not_connected',
+    );
     console.log(
-      'PASS: existing account login returns to the selected event with prefilled contact details.',
+      'PASS: configured fields and payment reservation reach the application; submitted answer snapshot appears in personal center without paid status.',
+    );
+
+    const applicationId = await evaluate(
+      "app.db.entries.find(r=>r.userId===app.current().id&&r.eventId==='volleyball').id",
+    );
+    await evaluate("app.logout();setView('home');refresh();openLogin()");
+    await fill('#loginForm', {
+      email: 'volleyball-manager@bluecourt.tw',
+      password: 'BlueCourt2026!',
+    });
+    await evaluate("document.getElementById('loginForm').requestSubmit()");
+    await until("view==='workspace'");
+    await click('[data-command=tab][data-tab=review]');
+    const reviewSelector = '[data-command=open-registration][data-entry="' + applicationId + '"]';
+    assert.equal(
+      await evaluate(
+        'document.querySelector(' +
+          JSON.stringify(reviewSelector) +
+          ").textContent.includes('第二行')",
+      ),
+      false,
+    );
+    await click(reviewSelector);
+    assert.equal(await evaluate("document.getElementById('actionModal').hidden"), false);
+    assert(
+      await evaluate("document.getElementById('actionModalBody').textContent.includes('第二行')"),
+    );
+    assert(
+      await evaluate(
+        "document.getElementById('actionModalBody').textContent.includes('隊伍補充資料')",
+      ),
+    );
+    await click('#actionModalBody [data-command=review][data-status=approved]');
+    assert(
+      await evaluate(
+        "document.querySelector('.review-detail-meta').textContent.includes('已核准')",
+      ),
+    );
+    const reviewShot = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+    });
+    fs.writeFileSync(
+      path.join(profile, 'registration-review-dialog.png'),
+      Buffer.from(reviewShot.data, 'base64'),
+    );
+    await evaluate('closeModal()');
+    assert.equal(await evaluate('document.activeElement.dataset.entry'), applicationId);
+    console.log(
+      'PASS: conditional editor and interactive preview, hidden-required switching, external link and review dialog approval.',
     );
 
     // A second real tab receives localStorage changes and preserves a profile draft.
@@ -442,6 +704,35 @@ async function login(role) {
       await sleep(300);
       assert.equal(await evalOther("document.querySelector('[name=phone]').value"), '0988000111');
       console.log('PASS: real cross-tab public score sync and in-progress form preservation.');
+      await login('manager');
+      await click('[data-command=tab][data-tab=forms]');
+      await click('[data-command=add-schema-field]');
+      await evaluate(
+        "const r=document.querySelector('#schemaFields').lastElementChild;r.querySelector('.schema-label').value='未儲存的隊伍備註';const f=document.querySelector('[data-form=registration-settings]');f.elements.paymentMode.value='planned';f.elements.paymentMode.dispatchEvent(new Event('change',{bubbles:true}));f.elements.paymentAmount.value='350';f.querySelector('[name=paymentMethods][value=bank_transfer]').checked=true;r.querySelector('.schema-label').focus()",
+      );
+      await sleep(200);
+      await evalOther("app.load();app.updateStream('badminton','https://www.youtube.com/')");
+      await sleep(300);
+      assert.equal(
+        await evaluate(
+          "document.querySelector('#schemaFields').lastElementChild.querySelector('.schema-label').value",
+        ),
+        '未儲存的隊伍備註',
+      );
+      assert.equal(
+        await evaluate("document.querySelector('[data-payment-details]').hidden"),
+        false,
+      );
+      assert.equal(
+        await evaluate(
+          "document.querySelector('[name=paymentMethods][value=bank_transfer]').checked",
+        ),
+        true,
+      );
+      assert.equal(await evaluate('document.activeElement.value'), '未儲存的隊伍備註');
+      console.log(
+        'PASS: cross-tab updates preserve unsaved schema rows, payment settings and field focus.',
+      );
     } finally {
       otherSocket?.close();
       await send('Target.closeTarget', { targetId: created.targetId });
@@ -469,6 +760,19 @@ async function login(role) {
     });
     fs.writeFileSync(path.join(profile, 'home-mobile.png'), Buffer.from(homeShot.data, 'base64'));
     console.log('Home mobile screenshot: ' + path.join(profile, 'home-mobile.png'));
+
+    await login('admin');
+    await click('[data-command=tab][data-tab=forms]');
+    assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'));
+    const formShot = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+    });
+    fs.writeFileSync(
+      path.join(profile, 'form-management-mobile.png'),
+      Buffer.from(formShot.data, 'base64'),
+    );
+    console.log('Form management screenshot: ' + path.join(profile, 'form-management-mobile.png'));
     assert.deepEqual(errors, []);
     console.log('PASS: mobile width and no uncaught browser exceptions.');
   } finally {

@@ -5,6 +5,10 @@
     typeof module !== 'undefined' && module.exports
       ? require('./demo-data.js')
       : root.BlueCourtDemo;
+  const registration =
+    typeof module !== 'undefined' && module.exports
+      ? require('./registration-forms.js')
+      : root.BlueCourtForms;
   const KEY = 'bluecourt-v2';
   const SESSION = 'bluecourt-session-v2';
   const labels = { admin: '系統管理員', manager: '賽事管理員', referee: '裁判', player: '選手' };
@@ -390,26 +394,11 @@
         e.deadline < new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' })
       )
         fail('此賽事已截止報名。');
-      const contact = Object.fromEntries(
-        ['name', 'phone', 'birthday', 'gender', 'address', 'emergencyName', 'emergencyPhone'].map(
-          (key) => [key, clean(data[key] ?? u[key])],
-        ),
+      const { contact, answers, payment, formSnapshot } = registration.validateApplication(
+        e,
+        data,
+        u,
       );
-      if (
-        !contact.name ||
-        !contact.phone ||
-        !contact.birthday ||
-        !contact.emergencyName ||
-        !contact.emergencyPhone
-      )
-        fail('請填妥報名資料中的姓名、電話、生日與緊急聯絡人。');
-      if (
-        !/^[+\d ()-]{7,20}$/.test(contact.phone) ||
-        !/^[+\d ()-]{7,20}$/.test(contact.emergencyPhone) ||
-        !dateValid(contact.birthday) ||
-        contact.birthday > new Date().toISOString().slice(0, 10)
-      )
-        fail('請確認聯絡電話、生日與緊急聯絡電話格式。');
       if (!e.groups.includes(data.group)) fail('請選擇有效組別。');
       if (!clean(data.team)) fail('請填寫選手或隊伍名稱。');
       if (this.db.entries.some((r) => r.eventId === eid && r.userId === u.id))
@@ -424,10 +413,57 @@
         group: data.group,
         team: clean(data.team),
         contact,
+        submittedAt: new Date().toISOString(),
+        answers,
+        payment,
+        formSnapshot,
         status: 'pending',
       });
       this.log('報名賽事', eid, clean(data.team));
       this.save();
+    }
+    saveRegistrationForm(eid, raw) {
+      this.load();
+      this.requireManager(eid);
+      const e = this.event(eid),
+        current = registration.getConfig(e);
+      if (raw.revision !== undefined && Number(raw.revision) !== current.revision)
+        fail('表單設定已更新，請重新載入後再儲存。');
+      const config = registration.sanitizeConfig(raw);
+      const inUse = new Set([
+        ...this.db.entries.filter((r) => r.eventId === eid).map((r) => r.group),
+        ...this.db.matches.filter((m) => m.eventId === eid).map((m) => m.group),
+      ]);
+      if ([...inUse].some((group) => !config.groups.includes(group)))
+        fail('已有報名或賽程的比賽項目不能移除或改名。');
+      e.registrationForm = { ...config, revision: current.revision + 1 };
+      e.groups = [...config.groups];
+      this.log('更新報名表設定', eid, '版本 ' + e.registrationForm.revision);
+      this.save();
+    }
+    registrationDetails(entryId) {
+      this.load();
+      const entry = this.db.entries.find((r) => r.id === entryId) || fail('找不到報名資料。');
+      this.requireManager(entry.eventId);
+      const user = this.db.users.find((u) => u.id === entry.userId);
+      return {
+        entry: JSON.parse(JSON.stringify(entry)),
+        event: JSON.parse(JSON.stringify(this.event(entry.eventId))),
+        user: user
+          ? Object.fromEntries(
+              [
+                'name',
+                'email',
+                'phone',
+                'birthday',
+                'gender',
+                'address',
+                'emergencyName',
+                'emergencyPhone',
+              ].map((key) => [key, user[key] || '']),
+            )
+          : {},
+      };
     }
     review(entryId, status) {
       this.load();
