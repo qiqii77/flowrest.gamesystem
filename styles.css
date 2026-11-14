@@ -2878,3 +2878,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .schema-preview [data-applicant-field] { min-width:0; }
 @media(max-width:980px) { .schema-editor-layout { grid-template-columns:220px minmax(0,1fr); gap:14px; } .schema-editor-layout .schema-row { padding:14px; } }
 @media(max-width:700px) { .schema-editor-layout { grid-template-columns:1fr; } .schema-sidebar { position:static; } .schema-outline { max-height:220px; } .schema-row-heading { align-items:flex-start; gap:10px; } .schema-inspector-tabs button { font-size:13px; } .condition-rule { padding:12px; } .review-card-open { padding:16px; flex-direction:column; align-items:flex-start; } .review-card-status { flex-direction:row; text-align:left; } .registration-detail-answers>div { grid-template-columns:1fr; gap:6px; } }
+.facebook-mark { background:#1877f2; color:#fff; font-family:Arial,sans-serif; font-size:28px; font-weight:700; }

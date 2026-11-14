@@ -235,7 +235,7 @@ async function login(role) {
       await evaluate(
         "[...document.querySelectorAll('[data-social-login]')].map(b=>b.dataset.socialLogin)",
       ),
-      ['LINE', 'Google'],
+      ['LINE', 'Google', 'Facebook'],
     );
     assert.equal(await evaluate("document.getElementById('openProfile').textContent"), '個人中心');
     await click('[data-social-login=LINE]');
@@ -251,9 +251,12 @@ async function login(role) {
         "document.getElementById('socialLoginStatus').textContent.includes('Google 帳號連動尚未開放')",
       ),
     );
+    await click('[data-social-login=Facebook]');
+    assert(await evaluate("document.getElementById('socialLoginStatus').textContent.includes('Facebook 帳號連動尚未開放')"));
+    assert.equal(await evaluate('app.current()'), null);
     await evaluate('closeLogin()');
     console.log(
-      'PASS: personal-center label, LINE/Google entries, and clear unavailable status without creating a session.',
+      'PASS: personal-center label, LINE/Google/Facebook entries, and clear unavailable status without creating a session.',
     );
     await login('referee');
     await click('[data-checkin][data-side=A]');
