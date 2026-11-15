@@ -23,6 +23,67 @@ const heading = (title, kicker = '') =>
   `<div class="workspace-section-heading"><div><p class="section-kicker">${h(kicker)}</p><h2>${h(title)}</h2></div></div>`;
 const statusBadge = (m) =>
   `<span class="match-state state-${h(m.status)}">${h(BlueCourt.statuses[m.status])}${m.locked ? ' · 已鎖定' : ''}</span>`;
+function workspaceSearchKey(kind, eventId) {
+  return [app.current()?.id || 'guest', kind, eventId].join(':');
+}
+function workspaceSearchPanel(kind, e, placeholder, content) {
+  const query = workspaceSearchQueries.get(workspaceSearchKey(kind, e.id)) || '';
+  return `<section class="workspace-search-scope" data-search-scope="${kind}" data-search-event="${h(e.id)}">
+    <div class="workspace-search-bar"><label class="workspace-search-label" for="search-${kind}">搜尋${{ changes: '賽事更動', review: '報名資料', personnel: '人員與指派', schedule: '全部賽程' }[kind]}</label>
+      <div class="workspace-search-controls"><input class="workspace-search-input" id="search-${kind}" type="search" value="${h(query)}" maxlength="200" placeholder="${h(placeholder)}" autocomplete="off" data-workspace-search>
+      ${button('清除搜尋', 'clear-workspace-search', query ? '' : 'disabled')}</div>
+      <p class="workspace-search-count" data-search-count role="status" aria-live="polite"></p>
+      <p class="muted-copy">可輸入多個關鍵字，以空格分隔；依目前頁面的賽事範圍搜尋。</p>
+    </div>
+    <p class="empty-state" data-search-empty hidden>找不到符合條件的資訊，請更換關鍵字或清除搜尋。</p>
+    <div class="workspace-search-results">${content}</div></section>`;
+}
+function searchableItem(id, keywords, content) {
+  return `<div class="workspace-search-item" data-search-item="${h(id)}" data-search-text="${h(keywords.filter((v) => v !== undefined && v !== null).join(' '))}">${content}</div>`;
+}
+function matchSearchTerms(m) {
+  const referee = app.db.users.find((u) => u.id === m.refereeId);
+  return [
+    m.teamA,
+    m.teamB,
+    m.group,
+    m.roundLabel,
+    m.date,
+    m.time,
+    m.venue,
+    m.court,
+    BlueCourt.statuses[m.status],
+    m.locked ? '已鎖定' : '未鎖定',
+    referee?.name,
+    referee?.email,
+    referee?.phone,
+    referee ? '裁判' : '尚未指派裁判',
+  ];
+}
+function applyWorkspaceSearch(scope) {
+  if (!scope) return;
+  const input = scope.querySelector('[data-workspace-search]');
+  if (!input) return;
+  workspaceSearchQueries.set(
+    workspaceSearchKey(scope.dataset.searchScope, scope.dataset.searchEvent),
+    input.value,
+  );
+  const normalize = (value) => String(value).normalize('NFKC').toLocaleLowerCase('zh-TW');
+  const tokens = normalize(input.value).trim().split(/\s+/).filter(Boolean);
+  const items = [...scope.querySelectorAll('[data-search-item]')];
+  let matched = 0;
+  for (const item of items) {
+    const text = normalize(item.dataset.searchText);
+    item.hidden = !tokens.every((token) => text.includes(token));
+    if (!item.hidden) matched++;
+  }
+  scope.querySelector('[data-search-count]').textContent = tokens.length
+    ? '找到 ' + matched + ' / ' + items.length + ' 筆符合資料'
+    : '共 ' + items.length + ' 筆資料';
+  scope.querySelector('[data-search-empty]').hidden =
+    !tokens.length || matched > 0 || !items.length;
+  scope.querySelector('[data-command=clear-workspace-search]').disabled = !input.value.length;
+}
 function matchCard(m, extra = '') {
   const e = app.db.events.find((e) => e.id === m.eventId);
   return `<article class="competition-card" data-match-id="${h(m.id)}">
@@ -42,10 +103,13 @@ function livePreview(event) {
     : `<div class="live-preview stream-unavailable" role="img" aria-label="直播連結尚未設定">${content}</div>`;
 }
 function eventPicker(events, command = 'event-select') {
-  return `<label class="compact-select">目前賽事<select id="${command}" aria-label="目前賽事">${options(
-    events.map((e) => [e.id, e.name]),
-    activeEvent,
-  )}</select></label>`;
+  const lookup = app.role() === 'admin';
+  return `<div class="event-lookup">${lookup ? field('搜尋賽事', 'eventLookup', eventLookupQuery, 'search', 'data-event-lookup placeholder="名稱、日期、運動或地點"') : ''}
+    <label class="compact-select">目前賽事<select id="${command}" aria-label="目前賽事">${options(
+      events.map((e) => [e.id, e.name]),
+      activeEvent,
+    )}</select></label>
+    ${lookup ? '<p data-event-lookup-count role="status">可搜尋後選取對應賽事。</p>' : ''}</div>`;
 }
 function eventSummary(e) {
   const entries = app.db.entries.filter((r) => r.eventId === e.id);
@@ -98,19 +162,44 @@ function tournamentSummary(e) {
 }
 function registrationList(e) {
   const entries = app.db.entries.filter((r) => r.eventId === e.id);
-  return (
-    heading('報名審核', e.name) +
-    (entries
+  const content =
+    entries
       .map((r) => {
         const user = app.db.users.find((u) => u.id === r.userId);
-        return `<article class="competition-card review-summary-card">
+        const status = { pending: '待審核', approved: '已核准', rejected: '未通過' }[r.status];
+        const keywords = [
+          r.id,
+          r.team,
+          r.group,
+          status,
+          user?.name,
+          user?.email,
+          user?.phone,
+          ...Object.values(r.contact || {}),
+          ...(r.answers || []).flatMap((a) => [a.label, a.value]),
+          r.payment?.amount,
+          BlueCourtForms.paymentMethods[r.payment?.method],
+        ];
+        return searchableItem(
+          r.id,
+          keywords,
+          `<article class="competition-card review-summary-card">
       <button type="button" class="review-card-open" data-command="open-registration" data-entry="${h(r.id)}" aria-haspopup="dialog" aria-label="開啟 ${h(r.team)} 的完整報名資料">
         <span><strong>${h(r.team)}</strong><span>${h(r.group)} · ${h(r.contact?.name || user?.name)} · ${h(user?.email)}</span></span>
-        <span class="review-card-status">${h({ pending: '待審核', approved: '已核准', rejected: '未通過' }[r.status])}<small>查看完整資料 →</small></span>
+        <span class="review-card-status">${h(status)}<small>查看完整資料 →</small></span>
       </button>
-      ${!e.scheduled ? `<div class="inline-actions review-card-actions">${button('核准', 'review', `data-entry="${h(r.id)}" data-status="approved"`)}${button('不通過', 'review', `data-entry="${h(r.id)}" data-status="rejected"`)}</div>` : '<p class="muted-copy review-card-actions">賽程已產生，請至賽事更動處理。</p>'}</article>`;
+      ${!e.scheduled ? `<div class="inline-actions review-card-actions">${button('核准', 'review', `data-entry="${h(r.id)}" data-status="approved"`)}${button('不通過', 'review', `data-entry="${h(r.id)}" data-status="rejected"`)}</div>` : '<p class="muted-copy review-card-actions">賽程已產生，請至賽事更動處理。</p>'}</article>`,
+        );
       })
-      .join('') || empty('目前沒有報名資料。'))
+      .join('') || empty('目前沒有報名資料。');
+  return (
+    heading('報名審核', e.name) +
+    workspaceSearchPanel(
+      'review',
+      e,
+      '搜尋姓名、隊伍、Email、電話、項目、審核狀態或表單答案',
+      content,
+    )
   );
 }
 function registrationDetailBody(data) {
@@ -166,26 +255,42 @@ function personnel(e) {
   const users = app.db.users.filter(
     (u) => u.canLogin !== false && !u.admin && !e.managers.includes(u.id),
   );
+  const managers = e.managers.map((id) => app.db.users.find((u) => u.id === id)).filter(Boolean);
+  const managerCard = searchableItem(
+    'managers-' + e.id,
+    ['賽事管理員', ...managers.flatMap((u) => [u.name, u.email, u.phone])],
+    `<div class="competition-card"><strong>賽事管理員</strong><p>${managers.map((u) => h(u.name) + ' · ' + h(u.email)).join('、') || '尚未指派'}</p></div>`,
+  );
+  const forms =
+    matches
+      .map((m) =>
+        searchableItem(
+          m.id,
+          matchSearchTerms(m),
+          `<form class="workflow-form personnel-form" data-form="referee" data-match="${h(m.id)}">
+    <strong>${h(m.teamA)} vs ${h(m.teamB)} · ${h(m.date)} ${h(m.time)} · ${h(m.venue)} · ${h(m.court)}</strong>
+    ${registeredAccountSearch(users, app.db.users.find((u) => u.id === m.refereeId)?.email || '', m.locked)}
+    <button class="primary-button" ${m.locked ? 'disabled' : ''}>儲存指派</button></form>`,
+        ),
+      )
+      .join('') || empty('賽程產生後即可指派裁判。');
+  const content =
+    managerCard +
+    forms +
+    '<div class="workspace-subheading"><h3>比分修正請求與處理紀錄</h3></div>' +
+    auditList(e.id, true, true);
   return (
     heading('人員管理', e.name) +
-    `<p class="muted-copy">以已註冊帳號指派每場裁判；解除全部指派後，帳號會恢復一般選手介面。</p>
-    <div class="competition-card"><strong>賽事管理員</strong><p>${h(e.managers.map((uid) => app.db.users.find((u) => u.id === uid)?.email).join('、') || '尚未指派')}</p></div>
-    ${
-      matches
-        .map(
-          (
-            m,
-          ) => `<form class="workflow-form personnel-form" data-form="referee" data-match="${h(m.id)}">
-      <strong>${h(m.teamA)} vs ${h(m.teamB)} · ${h(m.date)} ${h(m.time)} · ${h(m.venue)} · ${h(m.court)}</strong>
-      <label class="form-field">指派裁判帳號<select name="email" ${m.locked ? 'disabled' : ''}>${options([['', '不指派'], ...users.map((u) => [u.email, u.name + ' · ' + u.email])], app.db.users.find((u) => u.id === m.refereeId)?.email || '')}</select></label>
-      <button class="primary-button" ${m.locked ? 'disabled' : ''}>儲存指派</button></form>`,
-        )
-        .join('') || empty('賽程產生後即可指派裁判。')
-    }
-    <div class="workspace-subheading"><h3>比分修正請求與處理紀錄</h3></div>${auditList(e.id, true)}`
+    '<p class="muted-copy">以已註冊帳號指派每場裁判；解除全部指派後，帳號會恢復一般選手介面。</p>' +
+    workspaceSearchPanel(
+      'personnel',
+      e,
+      '搜尋管理員、裁判姓名、Email、電話、場次或場館場地',
+      content,
+    )
   );
 }
-function auditList(eid = '', correctionsOnly = false) {
+function auditList(eid = '', correctionsOnly = false, searchable = false) {
   const mids = app.db.matches.filter((m) => m.eventId === eid).map((m) => m.id);
   const rows = app.db.audit.filter(
     (a) =>
@@ -195,37 +300,61 @@ function auditList(eid = '', correctionsOnly = false) {
   return (
     rows
       .slice(0, 60)
-      .map(
-        (a) =>
-          `<div class="audit-row"><time>${h(new Date(a.at).toLocaleString('zh-TW'))}</time><strong>${h(a.action)}</strong><span>${h(app.db.users.find((u) => u.id === a.userId)?.name)} · ${h(a.detail)}</span></div>`,
-      )
+      .map((a) => {
+        const actor = app.db.users.find((u) => u.id === a.userId),
+          match = app.db.matches.find((m) => m.id === a.target);
+        const content = `<div class="audit-row"><time>${h(new Date(a.at).toLocaleString('zh-TW'))}</time><strong>${h(a.action)}</strong><span>${h(actor?.name)} · ${h(a.detail)}</span></div>`;
+        return searchable
+          ? searchableItem(
+              a.id,
+              [
+                a.action,
+                a.detail,
+                actor?.name,
+                actor?.email,
+                ...(match ? matchSearchTerms(match) : []),
+              ],
+              content,
+            )
+          : content;
+      })
       .join('') || empty('目前沒有紀錄。')
   );
 }
 function matchChanges(e) {
-  return (
-    heading('賽事更動', e.name) +
-    `<p class="muted-copy">裁判更新的狀態會同步顯示。可調整日期、時間與場地，或將同日同場地後續尚未開始的場次一起延後。</p>` +
-    (app.db.matches
+  const content =
+    app.db.matches
       .filter((m) => m.eventId === e.id)
       .map((m) =>
-        matchCard(
-          m,
-          m.locked
-            ? `<p class="notice">最終比分已鎖定。${!m.entryB ? '此場為輪空。' : ''}</p>${m.entryB ? button('填寫原因並重新開放比分', 'unlock', `data-match="${h(m.id)}"`) : ''}`
-            : `<form class="workflow-form match-edit-form" data-form="match" data-match="${h(m.id)}">
-        <input name="revision" type="hidden" value="${m.revision}"><div class="form-grid">${field('比賽日期', 'date', m.date, 'date', 'required')}${field('時間', 'time', m.time, 'time', 'required')}
-        ${field('場館', 'venue', m.venue, 'text', 'required maxlength="100" placeholder="例如：主場館、體育中心 2F"')}
-        ${field('場地名稱', 'court', m.court, 'text', 'required maxlength="100" placeholder="例如：中央球場、A1、東側場地"')}
-        <label class="form-field">賽況<select name="status">${options(
-          Object.entries(BlueCourt.statuses).filter(([k]) => k !== 'finished'),
-          m.status,
-        )}</select></label></div>
-        ${field('同日同場地後續場次延後（分鐘）', 'delay', 0, 'number', 'min="0" max="1440" required')}
-        <button class="primary-button">儲存賽事更動</button></form>`,
+        searchableItem(
+          m.id,
+          matchSearchTerms(m),
+          matchCard(
+            m,
+            m.locked
+              ? `<p class="notice">最終比分已鎖定。${!m.entryB ? '此場為輪空。' : ''}</p>${m.entryB ? button('填寫原因並重新開放比分', 'unlock', `data-match="${h(m.id)}"`) : ''}`
+              : `<form class="workflow-form match-edit-form" data-form="match" data-match="${h(m.id)}">
+      <input name="revision" type="hidden" value="${m.revision}"><div class="form-grid">${field('比賽日期', 'date', m.date, 'date', 'required')}${field('時間', 'time', m.time, 'time', 'required')}
+      ${field('場館', 'venue', m.venue, 'text', 'required maxlength="100" placeholder="例如：主場館、體育中心 2F"')}
+      ${field('場地名稱', 'court', m.court, 'text', 'required maxlength="100" placeholder="例如：中央球場、A1、東側場地"')}
+      <label class="form-field">賽況<select name="status">${options(
+        Object.entries(BlueCourt.statuses).filter(([key]) => key !== 'finished'),
+        m.status,
+      )}</select></label></div>
+      ${field('同日同場地後續場次延後（分鐘）', 'delay', 0, 'number', 'min="0" max="1440" required')}<button class="primary-button">儲存賽事更動</button></form>`,
+          ),
         ),
       )
-      .join('') || empty('報名關閉後自動產生首輪賽程。'))
+      .join('') || empty('報名關閉後自動產生首輪賽程。');
+  return (
+    heading('賽事更動', e.name) +
+    '<p class="muted-copy">裁判更新的狀態會同步顯示。可調整日期、時間與場地，或將同日同場地後續尚未開始的場次一起延後。</p>' +
+    workspaceSearchPanel(
+      'changes',
+      e,
+      '搜尋選手、隊伍、項目、日期、場館、場地、裁判或賽況',
+      content,
+    )
   );
 }
 function scoreColumn(m, side, measure, disabled) {
@@ -370,12 +499,12 @@ function adminAssignments() {
   return (
     heading('管理員指派', e.name) +
     `<form class="workflow-form" data-form="manager" data-event="${h(e.id)}">
-    <label class="form-field">已註冊帳號<select name="email" required>${options(
-      app.db.users
-        .filter((u) => u.canLogin !== false && !u.admin)
-        .map((u) => [u.email, u.name + ' · ' + u.email]),
+    ${registeredAccountSearch(
+      app.db.users.filter((u) => u.canLogin !== false && !u.admin),
       '',
-    )}</select></label>
+      false,
+      true,
+    )}
     <label class="form-field">操作<select name="operation"><option value="add">指派賽事管理員</option><option value="remove">移除賽事管理員</option></select></label>
     <button class="primary-button">儲存權限</button></form>${personnel(e)}`
   );

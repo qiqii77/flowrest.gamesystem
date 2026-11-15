@@ -226,6 +226,8 @@ function refreshSchemaOutline(form, selectedId, panel) {
       input.innerHTML = options(choices, current);
     }
   for (const row of rows) {
+    row.querySelector('[data-command=move-schema-up]').disabled = row === rows[0];
+    row.querySelector('[data-command=move-schema-down]').disabled = row === rows.at(-1);
     row.hidden = row !== chosen;
     row.classList.toggle('active', row === chosen);
     for (const section of row.querySelectorAll('[data-schema-panel]'))

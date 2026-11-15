@@ -147,6 +147,10 @@ async function login(role) {
     });
     await send('Runtime.enable');
     await send('Page.enable');
+    await send('Page.addScriptToEvaluateOnNewDocument', {
+      source:
+        "window.__buttonAuditCommands=new Set(JSON.parse(sessionStorage.getItem('button-audit-commands')||'[]'));window.__nativeButtonAuditCommands=new Set(JSON.parse(sessionStorage.getItem('button-audit-native')||'[]'));document.addEventListener('click',event=>{const button=event.target.closest('[data-command]');if(button&&!button.matches(':disabled')){window.__buttonAuditCommands.add(button.dataset.command);sessionStorage.setItem('button-audit-commands',JSON.stringify([...window.__buttonAuditCommands]));if(event.isTrusted){window.__nativeButtonAuditCommands.add(button.dataset.command);sessionStorage.setItem('button-audit-native',JSON.stringify([...window.__nativeButtonAuditCommands]));}}},true);",
+    });
     await send('Page.navigate', { url: 'http://127.0.0.1:' + port });
     await until(
       "typeof app !== 'undefined' && app.db && document.getElementById('appLoading').hidden",
@@ -252,7 +256,11 @@ async function login(role) {
       ),
     );
     await click('[data-social-login=Facebook]');
-    assert(await evaluate("document.getElementById('socialLoginStatus').textContent.includes('Facebook 帳號連動尚未開放')"));
+    assert(
+      await evaluate(
+        "document.getElementById('socialLoginStatus').textContent.includes('Facebook 帳號連動尚未開放')",
+      ),
+    );
     assert.equal(await evaluate('app.current()'), null);
     await evaluate('closeLogin()');
     console.log(
@@ -776,6 +784,8 @@ async function login(role) {
       Buffer.from(formShot.data, 'base64'),
     );
     console.log('Form management screenshot: ' + path.join(profile, 'form-management-mobile.png'));
+    await require('./event-navigation.cjs')({ evaluate, click, fill, login, until, send });
+    await require('./button-audit.cjs')({ evaluate, send, fill, login, until, profile, popupUrls });
     assert.deepEqual(errors, []);
     console.log('PASS: mobile width and no uncaught browser exceptions.');
   } finally {

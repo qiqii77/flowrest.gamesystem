@@ -849,3 +849,46 @@ test('review details enforce event scope and omit password hashes and salts', ()
   app.storage.setItem(SESSION, 'player');
   assert.throws(() => app.registrationDetails('entry-a'), /沒有這場賽事/);
 });
+
+test('event information edits are event-scoped, validated and cannot change permissions or schedules', () => {
+  const app = setup('manager'),
+    e = app.event('badminton');
+  const data = {
+    name: '更新羽球盃',
+    location: '綜合體育館',
+    date: e.date,
+    time: '10:00',
+    deadline: e.deadline,
+    organizer: '主辦單位',
+    address: '地址',
+    contactName: '窗口',
+    contactEmail: 'staff@example.tw',
+    contactPhone: '0912345678',
+    introduction: '活動介紹',
+    eligibility: '參賽資格',
+    rules: '競賽規則',
+    fees: '費用說明',
+    refunds: '退費規則',
+    notices: '報到流程',
+    admin: true,
+    managers: ['player'],
+  };
+  const matches = JSON.stringify(app.db.matches),
+    managers = [...e.managers];
+  assert.throws(() => app.updateEventInfo('volleyball', data), /沒有這場賽事/);
+  assert.throws(() => app.updateEventInfo(e.id, { ...data, time: '29:99' }), /時間/);
+  assert.throws(() => app.updateEventInfo(e.id, { ...data, contactEmail: 'invalid' }), /Email/);
+  assert.throws(() => app.updateEventInfo(e.id, { ...data, rules: '' }), /必要/);
+  app.updateEventInfo(e.id, data);
+  app.load();
+  assert.equal(app.event(e.id).name, data.name);
+  assert.equal(app.event(e.id).info.rules, data.rules);
+  assert.deepEqual(app.event(e.id).managers, managers);
+  assert.equal(JSON.stringify(app.db.matches), matches);
+  assert.equal(app.current().admin, false);
+  const admin = setup('admin');
+  admin.updateEventInfo('volleyball', data);
+  assert.equal(admin.event('volleyball').info.organizer, '主辦單位');
+  const player = setup('player');
+  assert.throws(() => player.updateEventInfo('badminton', data), /沒有這場賽事/);
+});

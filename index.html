@@ -15,7 +15,7 @@
     <div class="page-shell">
       <header class="top-header" aria-label="主導覽">
         <div class="top-left">
-          <button class="menu-button" id="menuToggle" type="button" aria-expanded="false" aria-controls="navDropdown">
+          <button class="menu-button" id="menuToggle" type="button" aria-label="開啟導覽選單" aria-expanded="false" aria-controls="navDropdown">
             <span></span>
             <span></span>
             <span></span>
@@ -67,6 +67,7 @@
         </div>
       </div>
 
+      <div class="page-back-bar"><button id="pageBack" class="text-button" type="button" disabled>← 回上一頁</button></div>
       <main class="home-page" id="home">
         <section class="live-home-section" id="live">
           <div class="section-head"><div><p class="section-kicker" id="liveDate"></p><h1>今日即時賽況</h1></div></div>
@@ -185,6 +186,7 @@
     <script src="workspace-views.js"></script>
     <script src="registration-form-views.js"></script>
     <script src="form-editor.js"></script>
+    <script src="event-navigation.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

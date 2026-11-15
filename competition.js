@@ -591,6 +591,60 @@
       this.log('更新直播網址', eid, url || '移除連結');
       this.save();
     }
+
+    updateEventInfo(eid, data) {
+      this.load();
+      this.requireManager(eid);
+      const e = this.event(eid);
+      if (
+        !clean(data.name) ||
+        clean(data.name).length > 150 ||
+        !clean(data.location) ||
+        clean(data.location).length > 300 ||
+        !dateValid(data.date) ||
+        !dateValid(data.deadline) ||
+        data.deadline > data.date ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(data.time)
+      )
+        fail('請確認名稱、地點、比賽日期、時間與報名截止日期。');
+      const required = [
+        'organizer',
+        'address',
+        'contactName',
+        'contactEmail',
+        'contactPhone',
+        'introduction',
+        'eligibility',
+        'rules',
+        'fees',
+        'refunds',
+      ];
+      if (required.some((key) => !clean(data[key])))
+        fail('請填寫主辦單位、聯絡資料及必要的活動說明。');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(data.contactEmail)))
+        fail('請填寫有效的聯絡 Email。');
+      const info = {};
+      for (const key of [...required, 'notices']) {
+        info[key] = clean(data[key]);
+        if (
+          info[key].length >
+          (['introduction', 'eligibility', 'rules', 'fees', 'refunds', 'notices'].includes(key)
+            ? 10000
+            : 500)
+        )
+          fail('賽事資訊內容過長，請縮短後再儲存。');
+      }
+      Object.assign(e, {
+        name: clean(data.name),
+        location: clean(data.location),
+        date: data.date,
+        time: data.time,
+        deadline: data.deadline,
+        info,
+      });
+      this.log('更新賽事資訊', eid, e.name);
+      this.save();
+    }
     createEvent(data) {
       this.load();
       this.requireAdmin();
