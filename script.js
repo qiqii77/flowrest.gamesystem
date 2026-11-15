@@ -228,12 +228,11 @@ function renderHome() {
     .map((e, i) => {
       const phase = BlueCourtDemo.eventPhase(e, app.db.matches);
       return `<article class="event-card" data-event-card="${h(e.id)}" data-command="event-detail" data-event="${h(e.id)}" role="link" tabindex="0" aria-label="查看${h(e.name)}的賽事資訊">
-      <div class="event-image event-${['one', 'two', 'three'][i % 3]}"></div><div class="event-body"><div class="event-topline"><span class="event-phase phase-${phase.key}">${h(phase.label)}</span></div>
-      <h3>${h(e.name)}</h3><dl class="event-card-facts">
-      <div><dt>比賽時間</dt><dd>${h(e.date)} ${h(e.time)}</dd></div>
-      <div><dt>比賽項目</dt><dd>${h(e.groups.join('、'))}</dd></div>
-      <div><dt>比賽地點</dt><dd>${h(e.location)}</dd></div></dl>
-      ${phase.canEnroll ? button('立即報名', 'enroll', `data-event="${h(e.id)}"`, 'primary-button') : ''}</div></article>`;
+      <div class="event-image event-${['one', 'two', 'three'][i % 3]}"></div><div class="event-body">
+      <div class="event-topline"><span class="chip neutral">${h(e.sport)}</span><span class="event-phase phase-${phase.key}">${h(phase.label)}</span></div>
+      <h3>${h(e.name)}</h3><p>${h(e.date)} ${h(e.time)} · ${h(e.location)}</p>
+      <p>${h(e.groups.join('、'))}</p>
+      <div class="inline-actions event-card-actions">${phase.canEnroll ? button('立即報名', 'enroll', `data-event="${h(e.id)}"`, 'primary-button') : phase.key === 'live' ? button('查看賽況', 'today-live', `data-event="${h(e.id)}"`, 'primary-button') : button('查看賽程', 'all-schedule', `data-event="${h(e.id)}"`, 'primary-button')}</div></div></article>`;
     })
     .join('');
   $('resultsCount').textContent = '共 ' + events.length + ' 場賽事';

@@ -2894,10 +2894,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-back-bar button:disabled { opacity: .4; cursor: default; }
 .event-card[data-command] { cursor: pointer; }
 .event-card[data-command]:hover, .event-card[data-command]:focus-visible { outline: 2px solid var(--blue, #176889); outline-offset: 3px; }
-.event-card-facts, .event-facts { margin: 18px 0; display: grid; gap: 14px; }
-.event-card-facts div, .event-facts div { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 12px; }
-.event-card-facts dt, .event-facts dt { color: #617482; font-size: .9rem; }
-.event-card-facts dd, .event-facts dd { margin: 0; overflow-wrap: anywhere; }
+.event-facts { margin: 18px 0; display: grid; gap: 14px; }
+.event-facts div { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 12px; }
+.event-facts dt { color: #617482; font-size: .9rem; }
+.event-facts dd { margin: 0; overflow-wrap: anywhere; }
+.event-card-actions { margin: 16px 0; padding-top: 16px; border-top: 1px solid var(--line); }
+.event-card .event-body p { overflow-wrap: anywhere; }
 .event-detail-page { max-width: 980px; margin: auto; padding: 24px; background: white; border: 1px solid #d9e3e8; border-radius: 16px; }
 .event-info-section { border-top: 1px solid #dde5e9; margin-top: 26px; padding-top: 24px; }
 .event-info-section h2 { font-size: 1.15rem; margin: 0 0 12px; }
