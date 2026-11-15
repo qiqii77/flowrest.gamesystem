@@ -228,7 +228,7 @@ function renderHome() {
     .map((e, i) => {
       const phase = BlueCourtDemo.eventPhase(e, app.db.matches);
       return `<article class="event-card" data-event-card="${h(e.id)}" data-command="event-detail" data-event="${h(e.id)}" role="link" tabindex="0" aria-label="查看${h(e.name)}的賽事資訊">
-      <div class="event-body"><div class="event-topline"><span class="event-phase phase-${phase.key}">${h(phase.label)}</span></div>
+      <div class="event-image event-${['one', 'two', 'three'][i % 3]}"></div><div class="event-body"><div class="event-topline"><span class="event-phase phase-${phase.key}">${h(phase.label)}</span></div>
       <h3>${h(e.name)}</h3><dl class="event-card-facts">
       <div><dt>比賽時間</dt><dd>${h(e.date)} ${h(e.time)}</dd></div>
       <div><dt>比賽項目</dt><dd>${h(e.groups.join('、'))}</dd></div>
