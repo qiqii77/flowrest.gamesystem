@@ -43,7 +43,7 @@ function schemaFieldRow(f, index = 0, fields = []) {
     locked = base?.locked;
   const c = f.condition || { enabled: false, match: 'all', effect: 'show', rules: [] };
   return `<article class="schema-row" data-schema-row data-field-id="${h(f.id)}" hidden>
-    <div class="schema-row-heading"><strong>${base ? '基本題目' : '自訂題目'}</strong><div class="schema-row-actions">${button('↑', 'move-schema-up', 'aria-label="題目上移"', 'text-button')}${button('↓', 'move-schema-down', 'aria-label="題目下移"', 'text-button')}${button('複製', 'duplicate-schema-field', '', 'text-button')}${base ? '' : button('刪除', 'remove-schema-field', '', 'text-button')}</div></div>
+    <div class="schema-row-heading"><strong>${base ? '基本題目' : '自訂題目'}</strong><div class="schema-row-actions">${button('', 'move-schema-up', 'aria-label="題目上移"', 'text-button', 'arrow-up')}${button('', 'move-schema-down', 'aria-label="題目下移"', 'text-button', 'arrow-down')}${button('複製', 'duplicate-schema-field', '', 'text-button')}${base ? '' : button('刪除', 'remove-schema-field', '', 'text-button')}</div></div>
     <nav class="schema-inspector-tabs" aria-label="題目設定">${[
       ['content', '內容'],
       ['answer', '作答設定'],
@@ -101,10 +101,8 @@ function formManagementView(e) {
     <p class="muted-copy">左側選擇題目，右側設定內容、作答方式與顯示條件。儲存後套用至報名頁，舊報名保留原始內容。</p>
     <form class="workflow-form registration-builder" data-form="registration-settings" data-event="${h(e.id)}">
       <input name="revision" type="hidden" value="${config.revision}">
-      <h3>比賽項目</h3>${field('競賽項目（以頓號或逗號分隔）', 'groups', config.groups.join('、'), 'text', 'required')}
-      <p class="muted-copy">已有報名或賽程的項目不能直接移除或改名。</p>
       <h3>報名表單設定</h3>
-      <div class="schema-editor-layout"><aside class="schema-sidebar"><div class="schema-sidebar-heading"><strong>題目清單</strong>${button('＋ 新增題目', 'add-schema-field', '', 'text-button')}</div><nav class="schema-outline" aria-label="報名題目清單"></nav></aside>
+      <div class="schema-editor-layout"><aside class="schema-sidebar"><div class="schema-sidebar-heading"><strong>題目清單</strong>${button('新增題目', 'add-schema-field', '', 'text-button', 'plus')}</div><nav class="schema-outline" aria-label="報名題目清單"></nav></aside>
       <div id="schemaFields">${config.fields.map((f, i) => schemaFieldRow(f, i, config.fields)).join('')}</div></div>
       <h3>繳費方式（預留）</h3>
       <label class="form-field">費用設定<select name="paymentMode">${options(
@@ -137,6 +135,11 @@ function formManagementView(e) {
       ${field('外部系統網址', 'externalUrl', external.url, 'url', 'placeholder="https://..."')}
       <label class="form-field">連結說明<textarea name="externalNote" rows="2" maxlength="2000">${h(external.note)}</textarea></label>
       <p class="notice">外部系統會另開分頁，不自動傳送報名資料或同步付款結果。目前不扣款或確認入帳。</p>
+      ${eventGroupsEditor(
+        config.groups.map((name) => ({ name, capacity: eventGroupLimit(e, name) })),
+        e,
+      )}
+      <p class="muted-copy">已有報名或賽程的項目不能直接移除或改名，名額不可低於有效報名數。</p>
       <div class="inline-actions"><button type="submit" class="primary-button">儲存表單設定</button>${button('預覽報名表', 'preview-schema')}</div>
       <p class="muted-copy">目前版本：${config.revision === 0 ? '預設表單' : config.revision}</p>
     </form>`;
@@ -144,7 +147,10 @@ function formManagementView(e) {
 function readRegistrationSettings(form) {
   return {
     revision: Number(form.elements.revision.value),
-    groups: form.elements.groups.value,
+    groups: readGroupDefinitions(form).map((item) => item.name),
+    groupLimits: Object.fromEntries(
+      readGroupDefinitions(form).map((item) => [item.name, item.capacity]),
+    ),
     fields: [...form.querySelectorAll('[data-schema-row]')].map((row) => ({
       id: row.dataset.fieldId,
       label: row.querySelector('.schema-label').value,
@@ -296,6 +302,6 @@ function externalSystemLink(external) {
     return '';
   }
   return `<section class="external-system"><h3>外部系統</h3><p>${h(external.note || '依主辦單位說明前往外部系統。')}</p>
-    <a class="secondary-button" href="${h(url.href)}" target="_blank" rel="noopener noreferrer">${h(external.name)} ↗</a>
+    <a class="secondary-button" href="${h(url.href)}" target="_blank" rel="noopener noreferrer">${h(external.name)} ${icon('external-link')}</a>
     <p class="muted-copy">另開分頁，不自動傳送報名資料；外部操作結果不會自動同步至此報名或付款狀態。</p></section>`;
 }

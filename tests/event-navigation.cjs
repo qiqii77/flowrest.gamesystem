@@ -40,7 +40,8 @@ module.exports = async function ({ evaluate: rawEvaluate, click, fill, login, un
   await until("view==='workspace' && activeTab==='info'");
   await click('#pageBack');
   await until("view==='workspace' && activeTab==='overview'");
-  await click('[data-command=tab][data-tab=personnel]');
+  await click('[data-command=tab][data-tab=changes]');
+  await click('[data-referee-assignment] summary');
   assert.equal(
     await evaluate("!!document.querySelector('[data-form=referee] select[name=email]')"),
     false,
@@ -77,8 +78,9 @@ module.exports = async function ({ evaluate: rawEvaluate, click, fill, login, un
     await evaluate("document.querySelector('[data-form=event-info]').dataset.event"),
     'volleyball',
   );
-  await click('[data-command=tab][data-tab=users]');
-  await click('[data-command=subtab][data-tab=assignments]');
+  await click('[data-command=tab][data-tab=events]');
+  await click('[data-command=tab][data-tab=staff]');
+  await click('[data-staff-assignment-panel] summary');
   assert.equal(
     await evaluate("document.querySelector('[data-form=manager] input[name=email]').type"),
     'text',

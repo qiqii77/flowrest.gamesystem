@@ -57,7 +57,14 @@ function routeURL(route) {
 function updateBackButton() {
   const b = $('pageBack');
   if (!b) return;
-  b.disabled = routeIndex === 0 && view === 'home';
+  const rootTab = tabSets[app.role()]?.[0]?.[0];
+  const rootWorkspace =
+    view === 'workspace' &&
+    activeTab === rootTab &&
+    (!activeSubtab || activeSubtab === 'summary') &&
+    !editingProfile;
+  b.closest('.page-back-bar').hidden = view === 'home' || rootWorkspace;
+  b.disabled = view === 'home';
 }
 function goBack() {
   if (!$('loginModal').hidden) {

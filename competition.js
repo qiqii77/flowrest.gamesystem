@@ -9,6 +9,10 @@
     typeof module !== 'undefined' && module.exports
       ? require('./registration-forms.js')
       : root.BlueCourtForms;
+  const pickleball =
+    typeof module !== 'undefined' && module.exports
+      ? require('./pickleball-scoring.js')
+      : root.BlueCourtPickleball;
   const KEY = 'bluecourt-v2';
   const SESSION = 'bluecourt-session-v2';
   const labels = { admin: '系統管理員', manager: '賽事管理員', referee: '裁判', player: '選手' };
@@ -66,9 +70,9 @@
       }
       return this.db;
     }
-    save() {
+    save(notify = true) {
       this.storage.setItem(KEY, JSON.stringify(this.db));
-      this.onchange();
+      if (notify) this.onchange();
     }
     async init() {
       if (this.load()) {
@@ -267,7 +271,11 @@
       if (!user) return 'guest';
       if (user.admin) return 'admin';
       if (this.db.events.some((e) => e.managers.includes(user.id))) return 'manager';
-      if (this.db.matches.some((m) => m.refereeId === user.id)) return 'referee';
+      if (
+        this.db.events.some((e) => (e.referees || []).includes(user.id)) ||
+        this.db.matches.some((m) => m.refereeId === user.id)
+      )
+        return 'referee';
       return 'player';
     }
     requireUser() {
@@ -401,10 +409,19 @@
       );
       if (!e.groups.includes(data.group)) fail('請選擇有效組別。');
       if (!clean(data.team)) fail('請填寫選手或隊伍名稱。');
-      if (this.db.entries.some((r) => r.eventId === eid && r.userId === u.id))
-        fail('你已報名此賽事。');
-      if (this.db.entries.filter((r) => r.eventId === eid).length >= e.capacity)
-        fail('此賽事報名名額已滿。');
+      if (
+        this.db.entries.some(
+          (r) => r.eventId === eid && r.userId === u.id && r.group === data.group,
+        )
+      )
+        fail('你已報名此項目，無須重複報名。');
+      const limit = e.groupLimits[data.group];
+      if (
+        this.db.entries.filter(
+          (r) => r.eventId === eid && r.group === data.group && r.status !== 'rejected',
+        ).length >= limit
+      )
+        fail('此項目報名名額已滿，請選擇其他項目。');
       Object.assign(u, contact);
       this.db.entries.push({
         id: id(),
@@ -429,6 +446,8 @@
         current = registration.getConfig(e);
       if (raw.revision !== undefined && Number(raw.revision) !== current.revision)
         fail('表單設定已更新，請重新載入後再儲存。');
+      if (Array.isArray(raw.groups) && new Set(raw.groups.map(clean)).size !== raw.groups.length)
+        fail('比賽項目名稱不可重複。');
       const config = registration.sanitizeConfig(raw);
       const inUse = new Set([
         ...this.db.entries.filter((r) => r.eventId === eid).map((r) => r.group),
@@ -436,6 +455,22 @@
       ]);
       if ([...inUse].some((group) => !config.groups.includes(group)))
         fail('已有報名或賽程的比賽項目不能移除或改名。');
+      const groupLimits = Object.fromEntries(
+        config.groups.map((group) => {
+          const limit =
+            raw.groupLimits?.[group] ??
+            e.groupLimits[group] ??
+            Math.ceil(e.capacity / e.groups.length);
+          if (!integer(limit, 1, 256)) fail('每個項目的組數上限必須介於 1 至 256。');
+          const used = this.db.entries.filter(
+            (r) => r.eventId === eid && r.group === group && r.status !== 'rejected',
+          ).length;
+          if (Number(limit) < used) fail('組數上限不能小於該項目已有的有效報名數。');
+          return [group, Number(limit)];
+        }),
+      );
+      e.groupLimits = groupLimits;
+      e.capacity = Object.values(groupLimits).reduce((sum, n) => sum + n, 0);
       e.registrationForm = { ...config, revision: current.revision + 1 };
       e.groups = [...config.groups];
       this.log('更新報名表設定', eid, '版本 ' + e.registrationForm.revision);
@@ -471,6 +506,13 @@
       this.requireManager(entry.eventId);
       if (this.event(entry.eventId).scheduled) fail('賽程已產生，請透過賽事更動處理異動。');
       if (!['approved', 'pending', 'rejected'].includes(status)) fail('審核狀態無效。');
+      if (entry.status === 'rejected' && status !== 'rejected') {
+        const e = this.event(entry.eventId);
+        const used = this.db.entries.filter(
+          (r) => r.eventId === entry.eventId && r.group === entry.group && r.status !== 'rejected',
+        ).length;
+        if (used >= e.groupLimits[entry.group]) fail('此項目報名名額已滿，無法重新核准。');
+      }
       entry.status = status;
       this.log('報名審核', entryId, status);
       this.save();
@@ -548,6 +590,172 @@
       });
       this.save();
     }
+
+    async createStaffAccounts(rows) {
+      this.load();
+      this.requireAdmin();
+      const actorId = this.current().id;
+      if (!Array.isArray(rows) || !rows.length || rows.length > 50)
+        fail('每批請建立 1 至 50 個帳號。');
+      const normalized = rows.map((row) => ({
+        name: clean(row.name),
+        email: email(row.email),
+        password: String(row.password || ''),
+        role: clean(row.role),
+        eventId: clean(row.eventId),
+        matchId: clean(row.matchId),
+      }));
+      const validate = () => {
+        const mails = new Set(),
+          matches = new Set();
+        normalized.forEach((row, i) => {
+          const reject = (message) => fail('第 ' + (i + 1) + ' 列：' + message);
+          if (
+            !row.name ||
+            row.name.length > 100 ||
+            row.email.length > 254 ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)
+          )
+            reject('請填寫姓名及有效的 Email。');
+          if (row.password.length < 8 || row.password.length > 128)
+            reject('初始密碼需為 8 至 128 個字元。');
+          if (!['manager', 'referee'].includes(row.role)) reject('僅能建立賽事管理員或裁判。');
+          if (mails.has(row.email)) reject('此批資料有重複 Email。');
+          mails.add(row.email);
+          if (this.db.users.some((u) => u.email === row.email))
+            reject('此 Email 已有帳號，請至批次開立帳號頁底部指派既有帳號。');
+          if (!this.db.events.some((e) => e.id === row.eventId)) reject('請指定有效的所屬賽事。');
+          if (row.role === 'manager' && row.matchId) reject('賽事管理員不需指定裁判場次。');
+          if (row.matchId) {
+            const m = this.db.matches.find((m) => m.id === row.matchId);
+            if (!m || m.eventId !== row.eventId) reject('裁判場次不屬於指定賽事。');
+            if (m.locked || m.status === 'finished' || m.status === 'cancelled')
+              reject('無法指派已鎖定、結束或取消的場次。');
+            if (m.refereeId) reject('此場次已有裁判，請選擇其他場次。');
+            if (matches.has(m.id)) reject('同一批不能重複指派同一場次。');
+            matches.add(m.id);
+          }
+        });
+      };
+      validate();
+      const prepared = await Promise.all(
+        normalized.map(async (row) => {
+          const salt = id();
+          return {
+            id: id(),
+            email: row.email,
+            name: row.name,
+            salt,
+            hash: await passwordHash(row.password, salt),
+            admin: false,
+            canLogin: true,
+            phone: '',
+            birthday: '',
+            gender: '不透露',
+            address: '',
+            emergencyName: '',
+            emergencyPhone: '',
+            level: '',
+            photo: '',
+          };
+        }),
+      );
+      // Recheck permissions and conflicts after asynchronous hashing; commit the whole batch once.
+      this.load();
+      this.requireAdmin();
+      if (this.current().id !== actorId) fail('操作帳號已變更，請重新送出。');
+      validate();
+      const result = [];
+      normalized.forEach((row, i) => {
+        const user = prepared[i],
+          e = this.event(row.eventId);
+        this.db.users.push(user);
+        if (row.role === 'manager') e.managers.push(user.id);
+        else {
+          e.referees = [...new Set([...(e.referees || []), user.id])];
+          if (row.matchId) {
+            const m = this.match(row.matchId);
+            m.refereeId = user.id;
+            m.revision++;
+          }
+        }
+        this.log(
+          '批次開立工作人員帳號',
+          e.id,
+          user.email + ' · ' + labels[row.role] + (row.matchId ? ' · 場次 ' + row.matchId : ''),
+        );
+        result.push({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: row.role,
+          eventId: e.id,
+          eventName: e.name,
+          matchId: row.matchId,
+        });
+      });
+      this.save();
+      return result;
+    }
+
+    async createQuickStaffAccounts(data) {
+      this.load();
+      this.requireAdmin();
+      const role = clean(data.role),
+        eventId = clean(data.eventId),
+        count = Number(data.count);
+      if (!['manager', 'referee'].includes(role)) fail('請選擇賽事管理員或裁判。');
+      this.event(eventId);
+      if (!integer(count, 1, 50)) fail('每批請建立 1 至 50 個帳號。');
+      const prefix = clean(data.prefix || role).toLowerCase();
+      if (!/^[a-z][a-z0-9_-]{1,23}$/.test(prefix))
+        fail('帳號前綴需為 2 至 24 個英文字母、數字、底線或連字號，並以英文字母開頭。');
+      const existing = new Set(this.db.users.map((u) => u.email)),
+        rows = [];
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!_-';
+      const ceiling = 256 - (256 % alphabet.length);
+      const password = () => {
+        let result = 'Bc';
+        while (result.length < 18) {
+          const bytes = new Uint8Array(32);
+          crypto.getRandomValues(bytes);
+          for (const byte of bytes) {
+            if (byte < ceiling) result += alphabet[byte % alphabet.length];
+            if (result.length === 18) break;
+          }
+        }
+        return result;
+      };
+      for (let sequence = 1; rows.length < count; sequence++) {
+        const suffix = String(sequence).padStart(3, '0');
+        const mail = prefix + suffix + '@staff.bluecourt.test';
+        if (existing.has(mail)) continue;
+        existing.add(mail);
+        rows.push({
+          name: labels[role] + ' ' + suffix,
+          email: mail,
+          password: password(),
+          role,
+          eventId,
+          matchId: '',
+        });
+      }
+      const created = await this.createStaffAccounts(rows);
+      // Initial passwords are returned once for the requested export; never persist them in the database.
+      return created.map((account, i) => ({ ...account, initialPassword: rows[i].password }));
+    }
+    revokeEventReferee(eid, uid) {
+      this.load();
+      this.requireManager(eid);
+      const e = this.event(eid);
+      if (!(e.referees || []).includes(uid)) fail('此帳號不在待指派裁判名單。');
+      if (this.db.matches.some((m) => m.eventId === eid && m.refereeId === uid))
+        fail('請先解除此裁判在該賽事的場次指派。');
+      e.referees = e.referees.filter((id) => id !== uid);
+      this.log('移除賽事裁判資格', eid, this.db.users.find((u) => u.id === uid)?.email || uid);
+      this.save();
+    }
+
     assignManager(eid, mail, remove = false) {
       this.load();
       this.requireAdmin();
@@ -571,15 +779,6 @@
       m.refereeId = u?.id || '';
       m.revision++;
       this.log('更新場次裁判', mid, u?.email || '解除指派');
-      this.save();
-    }
-    setAdmin(uid, value) {
-      this.load();
-      this.requireAdmin();
-      const u = this.db.users.find((u) => u.id === uid) || fail('找不到使用者。');
-      if (u.id === this.current().id && !value) fail('不能移除自己的系統管理員權限。');
-      u.admin = !!value;
-      this.log('更新系統管理員權限', uid, String(value));
       this.save();
     }
     updateStream(eid, value) {
@@ -657,20 +856,33 @@
         !/^\d{2}:\d{2}$/.test(data.time)
       )
         fail('請確認賽事名稱、地點、日期與截止日期。');
-      if (
-        ![data.courts, data.capacity, data.interval].every((v) => integer(v, 1, 256)) ||
-        Number(data.capacity) < 2
-      )
-        fail('請確認場地數、名額與場次間隔。');
-      const groups = [
-        ...new Set(
-          clean(data.groups)
-            .split(/[、,，]/)
-            .map(clean)
-            .filter(Boolean),
-        ),
-      ];
-      if (!groups.length) fail('請至少設定一個組別。');
+      if (![data.courts, data.interval].every((v) => integer(v, 1, 256)))
+        fail('請確認場地數與場次間隔。');
+      let definitions = data.groupDefinitions;
+      if (definitions === undefined) {
+        if (!integer(data.capacity, 1, 256)) fail('請確認報名組數上限。');
+        const names = (
+          Array.isArray(data.groups) ? data.groups : clean(data.groups).split(/[、,，]/)
+        )
+          .map(clean)
+          .filter(Boolean);
+        definitions = names.map((name) => ({
+          name,
+          capacity: Math.ceil(Number(data.capacity) / names.length),
+        }));
+      }
+      if (!Array.isArray(definitions) || !definitions.length || definitions.length > 30)
+        fail('請設定 1 至 30 個競賽項目。');
+      const groups = [],
+        groupLimits = Object.create(null);
+      for (const item of definitions) {
+        const name = clean(item.name);
+        if (!name || name.length > 80 || groups.includes(name))
+          fail('每個項目需有不重複的名稱（最多 80 字）。');
+        if (!integer(item.capacity, 1, 256)) fail('每個項目的組數上限必須介於 1 至 256。');
+        groups.push(name);
+        groupLimits[name] = Number(item.capacity);
+      }
       const locations = clean(data.locations)
         .split(/\r?\n/)
         .filter(Boolean)
@@ -700,7 +912,8 @@
               venue: clean(data.location),
               court: String(i + 1),
             })),
-        capacity: Number(data.capacity),
+        capacity: Object.values(groupLimits).reduce((sum, n) => sum + n, 0),
+        groupLimits,
         interval: Number(data.interval),
         groups,
         managers: [],
@@ -711,6 +924,28 @@
       this.log('登錄賽事', e.id);
       this.save();
       return e;
+    }
+    syncScheduleStatus(now = new Date()) {
+      this.load();
+      const currentTime = new Date(now).getTime();
+      if (!Number.isFinite(currentTime)) fail('賽況同步時間無效。');
+      let changed = false;
+      for (const m of this.db.matches) {
+        if (m.locked || !['pending', 'delayed'].includes(m.status)) continue;
+        const start = Date.parse(m.date + 'T' + m.time + ':00+08:00');
+        if (!Number.isFinite(start)) continue;
+        if (m.status === 'pending' && start < currentTime) {
+          m.status = 'delayed';
+          m.autoDelayed = true;
+          changed = true;
+        } else if (m.autoDelayed && start >= currentTime) {
+          m.status = 'pending';
+          delete m.autoDelayed;
+          changed = true;
+        }
+      }
+      if (changed) this.save(false);
+      return changed;
     }
     changeMatch(mid, data) {
       this.load();
@@ -745,6 +980,14 @@
         venue: clean(data.venue ?? m.venue),
         status: data.status,
       });
+      if (data.status !== 'delayed') delete m.autoDelayed;
+      if (
+        data.status === 'pending' &&
+        Date.parse(m.date + 'T' + m.time + ':00+08:00') < Date.now()
+      ) {
+        m.status = 'delayed';
+        m.autoDelayed = true;
+      }
       m.revision++;
       const event = this.event(m.eventId);
       if (!event.locations.some((p) => p.venue === m.venue && p.court === m.court)) {
@@ -809,8 +1052,51 @@
         fail('前輪勝方尚未確認，不能開始此場次。');
       if (status === 'started' && (!m.checkedA || !m.checkedB)) fail('請先完成雙方報到。');
       m.status = status;
+      delete m.autoDelayed;
       m.revision++;
       this.log('裁判更新賽況', mid, status);
+      this.save();
+    }
+
+    configureReferee(mid, config, revision) {
+      this.load();
+      const m = this.requireReferee(mid);
+      if (m.locked || m.status === 'finished') fail('已結束的場次無法變更賽前設定。');
+      if (revision !== undefined && Number(revision) !== m.revision)
+        fail('場次資料已更新，請重新確認設定。');
+      if (m.refereeState?.rallies > 0) fail('已開始逐球計分，請使用發球與站位修正。');
+      if (!m.checkedA || !m.checkedB) fail('請先完成雙方報到與資料核對。');
+      if (m.bracket && (!m.entryA || !m.entryB)) fail('前輪勝方尚未確認，不能開始此場次。');
+      pickleball.create(m, config);
+      m.status = 'started';
+      delete m.autoDelayed;
+      m.revision++;
+      this.log(
+        '裁判確認先發與場邊',
+        mid,
+        '匹克球雙打 · ' + config.target + ' 分 · ' + config.bestOf + ' 局制',
+      );
+      this.save();
+    }
+    refereeAction(mid, action, data = {}, revision) {
+      this.load();
+      const m = this.requireReferee(mid);
+      if (m.locked || m.status !== 'started') fail('僅已開始且未鎖定的場次可以操作裁判席。');
+      if (revision !== undefined && Number(revision) !== m.revision)
+        fail('比分或發球資訊已更新，請確認最新畫面。');
+      const handlers = {
+        rally: () => pickleball.rally(m, data.winner),
+        undo: () => pickleball.undo(m),
+        'swap-ends': () => pickleball.swapEnds(m),
+        pause: () => pickleball.pause(m, data.team || ''),
+        resume: () => pickleball.resume(m),
+        'next-game': () => pickleball.nextGame(m),
+        serve: () => pickleball.correctServe(m, data),
+      };
+      if (!Object.hasOwn(handlers, action)) fail('裁判操作無效。');
+      handlers[action]();
+      m.revision++;
+      if (action !== 'rally') this.log('裁判席操作', mid, m.refereeState.lastAction);
       this.save();
     }
     score(mid, side, delta, measure = 'points') {
@@ -819,8 +1105,10 @@
       if (m.locked || m.status !== 'started') fail('僅已開始且未鎖定的場次可以計分。');
       if (!['A', 'B'].includes(side) || ![-1, 1].includes(delta)) fail('計分操作無效。');
       if (!['points', 'games'].includes(measure)) fail('比分類型無效。');
+      if (m.refereeState?.paused) fail('請先恢復比賽。');
       const key = (measure === 'games' ? 'games' : 'score') + side;
       m[key] = Math.max(0, m[key] + delta);
+      pickleball.manualCorrection(m);
       m.revision++;
       this.save();
     }
@@ -835,6 +1123,19 @@
         m.gamesA = 0;
         m.gamesB = 0;
         m.gameHistory = [];
+      }
+      const state = m.refereeState;
+      if (state?.configured) {
+        pickleball.create(m, {
+          target: state.target,
+          bestOf: state.bestOf,
+          players: state.players,
+          servingTeam: state.gameOpeningTeam,
+          nearTeam: state.gameNearTeam || state.nearTeam,
+          firstA: state.firstServers.A,
+          firstB: state.firstServers.B,
+        });
+        m.refereeState.lastAction = '已歸零，回到本局先發與站位';
       }
       m.revision++;
       this.log('比分歸零', mid);
@@ -851,15 +1152,29 @@
       m['games' + winner]++;
       m.scoreA = 0;
       m.scoreB = 0;
+      const state = m.refereeState;
+      if (state?.configured) {
+        pickleball.create(m, {
+          target: state.target,
+          bestOf: state.bestOf,
+          players: state.players,
+          servingTeam: state.gameOpeningTeam === 'A' ? 'B' : 'A',
+          nearTeam: state.nearTeam === 'A' ? 'B' : 'A',
+          firstA: state.firstServers.A,
+          firstB: state.firstServers.B,
+        });
+        m.refereeState.lastAction = '已手動記錄本局，請核對下一局先發';
+      }
       m.revision++;
       this.log('記錄本局比分', mid, JSON.stringify(m.gameHistory.at(-1)));
       this.save();
     }
-    finalize(mid, revision) {
+    finalize(mid, revision, agreed = false) {
       this.load();
       const m = this.requireReferee(mid);
       if (m.locked || m.status !== 'started') fail('此場次已鎖定或尚未開始。');
       if (m.revision !== revision) fail('比分或場次資訊已更新，請確認最新內容後再次送出。');
+      if (m.refereeState?.matchWinner && !agreed) fail('請先確認雙方已核對最終比分。');
       const winner =
         m.gamesA !== m.gamesB
           ? m.gamesA > m.gamesB
@@ -886,6 +1201,8 @@
       m.winnerSide = winner;
       m.locked = true;
       m.status = 'finished';
+      delete m.autoDelayed;
+      m.completedAt = new Date().toISOString();
       m.revision++;
       this.log(
         '確認最終比分並鎖定',
@@ -916,6 +1233,15 @@
         next['team' + m.nextSlot] = '前輪勝方待重新確認';
         next['checked' + m.nextSlot] = false;
         next.revision++;
+      }
+      if (m.refereeState?.configured) {
+        const state = m.refereeState;
+        const last = m.gameHistory.at(-1);
+        if (state.gameWinner && last?.mode === 'pickleball-sideout') {
+          m['games' + state.gameWinner] = Math.max(0, m['games' + state.gameWinner] - 1);
+          m.gameHistory.pop();
+        }
+        pickleball.manualCorrection(m);
       }
       m.locked = false;
       m.status = 'delayed';

@@ -35,6 +35,7 @@ const server = http.createServer((req, res) => {
         '.html': 'text/html; charset=utf-8',
         '.js': 'text/javascript; charset=utf-8',
         '.css': 'text/css; charset=utf-8',
+        '.svg': 'image/svg+xml',
       }[path.extname(file)] || 'application/octet-stream',
     );
     res.end(data);
@@ -241,7 +242,14 @@ async function login(role) {
       ),
       ['LINE', 'Google', 'Facebook'],
     );
-    assert.equal(await evaluate("document.getElementById('openProfile').textContent"), '個人中心');
+    assert.equal(
+      await evaluate("document.getElementById('openProfile').textContent.trim()"),
+      '個人中心',
+    );
+    await until(
+      "[...document.querySelectorAll('.social-login-icon')].length === 3 && [...document.querySelectorAll('.social-login-icon')].every(img => img.complete && img.naturalWidth > 0)",
+    );
+
     await click('[data-social-login=LINE]');
     assert(
       await evaluate(
@@ -300,7 +308,7 @@ async function login(role) {
       await evaluate("[...document.querySelector('#event-select').options].map(o=>o.value)"),
       ['badminton'],
     );
-    await click('[data-command=tab][data-tab=personnel]');
+    await click('[data-command=tab][data-tab=changes]');
     assert(
       await evaluate(
         "document.getElementById('currentPanel').textContent.includes('Browser correction request')",
@@ -342,10 +350,11 @@ async function login(role) {
       15,
     );
     console.log('PASS: demo has three events, 48 badminton entries and all 45 bracket matches.');
-    await click('[data-command=tab][data-tab=users]');
-    await click('[data-command=subtab][data-tab=assignments]');
+    await click('[data-command=tab][data-tab=events]');
+    await click('[data-command=tab][data-tab=staff]');
+    await click('[data-staff-assignment-panel] summary');
     assert(await evaluate("!!document.querySelector('[data-form=manager]')"));
-    console.log('PASS: admin all-event access and nested user/assignment navigation.');
+    console.log('PASS: admin all-event access and event personnel assignment navigation.');
     await click('[data-command=tab][data-tab=forms]');
     assert.equal(await evaluate("document.querySelector('#event-select').options.length"), 3);
     assert(await evaluate("!!document.querySelector('[data-form=registration-settings]')"));
@@ -373,8 +382,11 @@ async function login(role) {
     );
     console.log('PASS: dedicated upcoming-event manager can access only the volleyball event.');
     await click('[data-command=tab][data-tab=forms]');
+    await click('[data-group-action=add]');
+    await evaluate(
+      "const groupRow=document.querySelector('[data-group-definitions]').lastElementChild;groupRow.querySelector('[name=groupName]').value='校友組';groupRow.querySelector('[name=groupCapacity]').value='16'",
+    );
     await fill('[data-form=registration-settings]', {
-      groups: '公開組、校友組',
       paymentMode: 'planned',
       paymentAmount: '600',
       paymentNote: '繳費功能尚未開放，請等待主辦通知。',
@@ -741,8 +753,19 @@ async function login(role) {
         true,
       );
       assert.equal(await evaluate('document.activeElement.value'), '未儲存的隊伍備註');
+      await evaluate(
+        "(()=>{const rows=document.querySelectorAll('[data-group-definition]');const input=rows[rows.length-1].querySelector('[name=groupCapacity]');input.value='25';input.focus();})()",
+      );
+      await evalOther("app.load();app.updateStream('badminton','https://www.youtube.com/')");
+      await sleep(300);
+      assert.equal(await evaluate('document.activeElement.name'), 'groupCapacity');
+      assert.equal(await evaluate('document.activeElement.value'), '25');
+      assert.equal(
+        await evaluate("document.querySelectorAll('[data-group-definition]').length"),
+        3,
+      );
       console.log(
-        'PASS: cross-tab updates preserve unsaved schema rows, payment settings and field focus.',
+        'PASS: cross-tab updates preserve unsaved schema rows, payment settings, per-category limits and field focus.',
       );
     } finally {
       otherSocket?.close();

@@ -67,6 +67,21 @@
   }
   function normalize(db) {
     for (const e of db.events) {
+      if (!Array.isArray(e.referees)) e.referees = [];
+      const fallback = Math.max(1, Math.ceil(Number(e.capacity || 32) / e.groups.length));
+      const previous = e.groupLimits || {};
+      e.groupLimits = Object.fromEntries(
+        e.groups.map((group) => {
+          const used = db.entries.filter(
+            (r) => r.eventId === e.id && r.group === group && r.status !== 'rejected',
+          ).length;
+          const value = previous[group];
+          const valid = Number.isInteger(value) && value >= 1 && value <= 256;
+          return [group, valid ? value : Math.max(used, fallback)];
+        }),
+      );
+      e.capacity = Object.values(e.groupLimits).reduce((sum, n) => sum + n, 0);
+
       if (e.streamUrl === undefined)
         e.streamUrl = e.id === 'badminton' ? 'https://www.youtube.com/' : '';
       if (!Array.isArray(e.locations) || !e.locations.length)

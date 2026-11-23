@@ -21,14 +21,14 @@ const tabSets = {
     ['create', '賽事登錄'],
     ['info', '賽事資訊'],
     ['forms', '表單管理'],
-    ['users', '使用者管理'],
+    ['staff', '批次開立帳號'],
     ['profile', '個人資料'],
   ],
   manager: [
     ['overview', '賽事總覽'],
     ['changes', '賽事更動'],
     ['review', '報名審核'],
-    ['personnel', '人員管理'],
+    ['roster', '選手名單'],
     ['info', '賽事資訊'],
     ['forms', '表單管理'],
     ['profile', '個人資料'],
@@ -75,6 +75,7 @@ function closeNavigation() {
   $('accountButton').setAttribute('aria-expanded', 'false');
 }
 function setView(next, scroll = true) {
+  if (next !== 'workspace') document.body.classList.remove('is-referee-workspace');
   if (routeReady && !routeRestoring && history.state?.bluecourt)
     history.replaceState({ ...history.state, scroll: window.scrollY }, '');
   view = next;
@@ -90,15 +91,16 @@ function setView(next, scroll = true) {
   if (scroll) window.scrollTo({ top: 0, behavior: 'auto' });
 }
 function renderAccount() {
+  syncStaffCredentialOwner();
   const user = app.current(),
     role = app.role();
   const account = $('accountButton');
   if (!user) {
-    account.textContent = '登入';
+    account.innerHTML = icon('log-in') + '<span>登入</span>';
     account.classList.remove('is-signed-in');
     return;
   }
-  account.innerHTML = `<span class="account-button-content"><span>${h(user.name)}</span><span class="account-caret">▾</span></span>`;
+  account.innerHTML = `<span class="account-button-content"><span>${h(user.name)}</span><span class="account-caret">${icon('chevron-down')}</span></span>`;
   account.classList.add('is-signed-in');
   $('accountMenuName').textContent = user.name;
   $('accountMenuAvatar').textContent = user.name.slice(0, 2);
@@ -121,6 +123,10 @@ function renderWorkspace() {
   const role = app.role(),
     tabs = tabSets[role];
   if (!tabs.some(([key]) => key === activeTab)) activeTab = tabs[0][0];
+  document.body.classList.toggle(
+    'is-referee-workspace',
+    role === 'referee' && activeTab === 'scoreboard',
+  );
   $('workspaceRoleLabel').textContent = BlueCourt.labels[role];
   $('workspaceTitle').textContent = '你好，' + user.name;
   const managed = app.managedEvents();
@@ -145,7 +151,7 @@ function renderWorkspace() {
           overview: eventSummary,
           changes: matchChanges,
           review: registrationList,
-          personnel,
+          roster: participantRoster,
           forms: formManagementView,
           info: eventInfoEditor,
         }[activeTab] || eventSummary
@@ -159,27 +165,14 @@ function renderWorkspace() {
       content = managed.length
         ? formManagementView(app.event(activeEvent))
         : empty('請先建立賽事。');
-    if (activeTab === 'users') {
-      if (!['accounts', 'assignments'].includes(activeSubtab)) activeSubtab = 'accounts';
-      content = subnav([
-        ['accounts', '帳號與系統權限'],
-        ['assignments', '賽事管理員與裁判指派'],
-      ]);
-      content +=
-        activeSubtab === 'accounts'
-          ? adminUsers()
-          : managed.length
-            ? eventPicker(managed) + adminAssignments()
-            : empty('請先登錄賽事。');
-    }
+    if (activeTab === 'staff') content = staffAccountsView();
     if (activeTab === 'events') {
-      if (!['summary', 'changes', 'review', 'personnel', 'audit'].includes(activeSubtab))
+      if (!['summary', 'changes', 'roster', 'audit'].includes(activeSubtab))
         activeSubtab = 'summary';
       content = subnav([
         ['summary', '全部賽事總覽'],
         ['changes', '賽事更動'],
-        ['review', '報名審核'],
-        ['personnel', '人員管理'],
+        ['roster', '選手名單'],
         ['audit', '操作紀錄'],
       ]);
       if (managed.length) {
@@ -187,9 +180,11 @@ function renderWorkspace() {
         content +=
           activeSubtab === 'audit'
             ? heading('賽事操作紀錄', e.name) + auditList(e.id)
-            : { summary: eventSummary, changes: matchChanges, review: registrationList, personnel }[
-                activeSubtab
-              ](e);
+            : {
+                summary: eventSummary,
+                changes: matchChanges,
+                roster: participantRoster,
+              }[activeSubtab](e);
       } else content += empty('尚無賽事，請先至賽事登錄建立。');
     }
   }
@@ -201,6 +196,13 @@ function renderWorkspace() {
       )
       .join('')}</nav>
     ${needPicker && managed.length ? '<div class="event-picker-row">' + eventPicker(managed) + '</div>' : ''}<section class="workspace-panel active" id="currentPanel">${content}</section>`;
+  const staffForm = document.querySelector('[data-form=staff-batch]');
+  if (staffForm) numberStaffRows(staffForm);
+  const quickForm = document.querySelector('[data-form=staff-quick]');
+  if (quickForm) updateStaffQuickSummary(quickForm);
+  document
+    .querySelectorAll('#workspaceContent [data-group-editor]')
+    .forEach(refreshGroupDefinitions);
   const editor = document.querySelector('[data-form=registration-settings]');
   if (editor) refreshSchemaOutline(editor);
   document.querySelectorAll('#workspaceContent [data-search-scope]').forEach(applyWorkspaceSearch);
@@ -336,6 +338,7 @@ function modal({ title, description, body = '', primary = '', action = null }) {
   $('actionModalBody').innerHTML = `<p>${h(description)}</p>${body}`;
   $('actionModalPrimary').textContent = primary;
   $('actionModalPrimary').hidden = !primary;
+  $('actionModalPrimary').disabled = false;
   modalAction = action;
   $('actionModal').hidden = false;
   document.body.classList.add('modal-open');
@@ -396,7 +399,7 @@ function afterLogin() {
   }
   showWorkspace();
 }
-function openEnrollment(eid) {
+function openEnrollment(eid, addGroup = false) {
   const e = app.event(eid);
   if (!registrationAvailable(e)) throw new Error('此賽事已截止報名。');
   pendingEnrollment = eid;
@@ -406,15 +409,19 @@ function openEnrollment(eid) {
     return;
   }
   const entry = app.db.entries.find((r) => r.userId === app.current().id && r.eventId === eid);
-  if (entry) {
+  if (entry && !addGroup) {
     clearEnrollment();
     if (app.role() === 'player') {
       showWorkspace();
       activeTab = 'entries';
       renderWorkspace();
-      notice('你已報名此賽事，無須重複報名。');
+      notice('你已報名此賽事，可在下方查看狀態或加報其他項目。');
     } else showOwnRegistration(eid);
     return;
+  }
+  if (!enrollmentAvailableGroups(e).length) {
+    clearEnrollment();
+    throw new Error('此賽事目前沒有可報名的其他項目。');
   }
   setView('enrollment');
   renderEnrollment();
@@ -459,13 +466,19 @@ function finalConfirmation(mid) {
   modal({
     title: '確認送出最終比分？',
     description: `${m.teamA} vs ${m.teamB}；局數（大比分）${m.gamesA}：${m.gamesB}，本局得分（小比分）${m.scoreA}：${m.scoreB}。送出後比分將鎖定，無法再次更動；如需修正，請聯絡賽事管理員。`,
+    body: m.refereeState?.matchWinner
+      ? '<label class="referee-agreement"><input type="checkbox" id="refereeScoreAgreement">雙方已核對比分，確認送出後鎖定結果。</label>'
+      : '',
     primary: '確認送出並鎖定',
     action: () => {
-      app.finalize(mid, revision);
+      if (m.refereeState?.matchWinner && !document.getElementById('refereeScoreAgreement')?.checked)
+        throw new Error('請先勾選雙方已核對比分。');
+      app.finalize(mid, revision, !!document.getElementById('refereeScoreAgreement')?.checked);
       closeModal();
       notice('最終比分已送出並鎖定。');
     },
   });
+  if (m.refereeState?.matchWinner) $('actionModalPrimary').disabled = true;
 }
 function reasonModal(mid, kind) {
   modal({
@@ -473,7 +486,7 @@ function reasonModal(mid, kind) {
     description:
       kind === 'unlock'
         ? '填寫原因後，原裁判可將狀態設為開始並修正比分。'
-        : '請描述需要修正的內容，賽事管理員會在此賽事的人員管理看到請求。',
+        : '請描述需要修正的內容，賽事管理員會在此賽事的賽事更動看到請求。',
     body: field('原因', 'reason', '', 'text', 'id="correctionReason" required maxlength="500"'),
     primary: '確認送出',
     action: () => {
@@ -600,6 +613,7 @@ async function runCommand(buttonElement) {
             { ...app.event(form.dataset.event), groups: draft.groups },
             app.current(),
             draft,
+            true,
           ) +
           '</div>',
       });
@@ -644,7 +658,7 @@ async function runCommand(buttonElement) {
       renderWorkspace();
       break;
     case 'enroll':
-      openEnrollment(eid);
+      openEnrollment(eid, b.dataset.addGroup === 'true');
       break;
     case 'event-detail':
       openEventDetails(eid);
@@ -668,9 +682,14 @@ async function runCommand(buttonElement) {
         openRegistrationDetails(b.dataset.entry);
       notice('審核狀態已更新。');
       break;
-    case 'status':
-      app.setStatus(mid, b.dataset.status);
+    case 'status': {
+      const setup = b.closest('[data-form=referee-setup]');
+      if (b.dataset.status === 'started' && setup) {
+        if (!setup.reportValidity()) break;
+        app.configureReferee(mid, readRefereeSetup(setup), Number(setup.dataset.revision));
+      } else app.setStatus(mid, b.dataset.status);
       break;
+    }
     case 'score':
       app.score(mid, b.dataset.side, Number(b.dataset.delta), b.dataset.measure || 'points');
       break;
@@ -720,21 +739,6 @@ async function runCommand(buttonElement) {
     case 'correction':
       reasonModal(mid, 'correction');
       break;
-    case 'admin-role': {
-      const user = app.db.users.find((u) => u.id === b.dataset.user);
-      modal({
-        title: '確認變更系統管理員權限？',
-        description:
-          user.email +
-          (user.admin ? ' 將失去所有賽事的系統管理權限。' : ' 將能管理全部賽事與使用者權限。'),
-        primary: '確認變更',
-        action: () => {
-          app.setAdmin(user.id, !user.admin);
-          closeModal();
-        },
-      });
-      break;
-    }
   }
 }
 document.addEventListener('click', (event) => {
@@ -757,6 +761,8 @@ document.addEventListener('click', (event) => {
   }
 });
 document.addEventListener('change', (event) => {
+  if (event.target.id === 'refereeScoreAgreement')
+    $('actionModalPrimary').disabled = !event.target.checked;
   try {
     const el = event.target;
     if (el.classList.contains('condition-enabled')) {
@@ -836,7 +842,7 @@ document.addEventListener('submit', (event) => {
           renderWorkspace();
         }
         if (app.role() !== 'player') showOwnRegistration(form.dataset.event);
-        notice('報名成功，等待賽事管理員審核。');
+        notice('報名資料已送出，目前審核中。');
         break;
       case 'profile':
         app.updateProfile(data);
@@ -857,12 +863,13 @@ document.addEventListener('submit', (event) => {
         notice('賽事更動已同步。');
         break;
       case 'event': {
+        data.groupDefinitions = readGroupDefinitions(form);
         const e = app.createEvent(data);
         activeEvent = e.id;
         activeTab = 'events';
         activeSubtab = 'summary';
         renderWorkspace();
-        notice('賽事已建立，可至使用者管理指派賽事管理員。');
+        notice('賽事已建立，可至批次開立帳號建立或指派工作人員。');
         break;
       }
     }
@@ -1053,6 +1060,17 @@ window.addEventListener('storage', (event) => {
           values: Object.fromEntries(new FormData(form)),
           schema:
             form.dataset.form === 'registration-settings' ? readRegistrationSettings(form) : null,
+          groupDefinitions: form.querySelector('[data-group-editor]')
+            ? readGroupDefinitions(form)
+            : null,
+          groupFocus: focused.closest('[data-group-definition]')
+            ? {
+                index: [...form.querySelectorAll('[data-group-definition]')].indexOf(
+                  focused.closest('[data-group-definition]'),
+                ),
+                name: focused.name,
+              }
+            : null,
           selectedField: form.dataset.selectedField,
           editorPanel: form.dataset.editorPanel,
           schemaFocus: focused.closest('[data-schema-row]')
@@ -1086,6 +1104,13 @@ window.addEventListener('storage', (event) => {
           f.dataset.event === draft.event,
       );
       if (nextForm) {
+        if (draft.groupDefinitions) {
+          nextForm.querySelector('[data-group-editor]').outerHTML = eventGroupsEditor(
+            draft.groupDefinitions,
+            draft.event ? app.event(draft.event) : null,
+          );
+          refreshGroupDefinitions(nextForm.querySelector('[data-group-editor]'));
+        }
         if (draft.schema)
           nextForm.querySelector('#schemaFields').innerHTML = draft.schema.fields
             .map(schemaFieldRow)
@@ -1104,14 +1129,18 @@ window.addEventListener('storage', (event) => {
             draft.editorPanel,
           );
         }
-        const nextInput = draft.schemaFocus?.kind
-          ? nextForm.querySelector(
-              '[data-field-id="' +
-                CSS.escape(draft.schemaFocus.id) +
-                '"] .' +
-                draft.schemaFocus.kind,
-            )
-          : nextForm.elements[draft.focus];
+        const nextInput = draft.groupFocus
+          ? [...nextForm.querySelectorAll('[data-group-definition]')][
+              draft.groupFocus.index
+            ]?.querySelector('[name="' + CSS.escape(draft.groupFocus.name) + '"]')
+          : draft.schemaFocus?.kind
+            ? nextForm.querySelector(
+                '[data-field-id="' +
+                  CSS.escape(draft.schemaFocus.id) +
+                  '"] .' +
+                  draft.schemaFocus.kind,
+              )
+            : nextForm.elements[draft.focus];
         nextInput?.focus();
         if (nextInput && draft.start !== null && ['text', 'tel', 'search'].includes(nextInput.type))
           nextInput.setSelectionRange(draft.start, draft.end);
@@ -1129,6 +1158,8 @@ app.onchange = () => {
   try {
     await app.init();
     app.expireRegistrations();
+    app.syncScheduleStatus();
+    refreshScheduleBadges();
     refresh();
     $('appLoading').hidden = true;
     if (app.current() && pendingEnrollment) openEnrollment(pendingEnrollment);
@@ -1147,6 +1178,8 @@ $('appNotice').addEventListener('click', () => {
 window.setInterval(() => {
   try {
     app.expireRegistrations();
+    app.syncScheduleStatus();
+    refreshScheduleBadges();
     renderHome();
     if (view === 'public') renderPublic();
     if (view === 'enrollment')
@@ -1156,11 +1189,13 @@ window.setInterval(() => {
   } catch (error) {
     handleError(error);
   }
-}, 30000);
+}, 15000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     try {
       app.expireRegistrations();
+      app.syncScheduleStatus();
+      refreshScheduleBadges();
       renderHome();
       if (view === 'public') renderPublic();
       if (view === 'enrollment')

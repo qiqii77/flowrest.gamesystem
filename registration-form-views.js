@@ -17,11 +17,30 @@ function registrationInput(f, u) {
     required + (f.type === 'number' ? ' step="any"' : f.type === 'date' ? '' : ' maxlength="2000"'),
   );
 }
-function enrollmentFields(e, u, config = BlueCourtForms.getConfig(e)) {
-  return `<h3>競賽項目</h3><label class="form-field">報名項目 *<select name="group" required>${options(
-    config.groups.map((g) => [g, g]),
-    config.groups[0],
-  )}</select></label>
+function enrollmentFields(e, u, config = BlueCourtForms.getConfig(e), preview = false) {
+  const available = preview ? config.groups : enrollmentAvailableGroups(e, u);
+  return `<h3>競賽項目</h3><label class="form-field">報名項目／組別 *<select name="group" required>${config.groups
+    .map((group) => {
+      const state = preview
+        ? {
+            available: true,
+            remaining: eventGroupLimit(e, group),
+            registered: false,
+            limit: eventGroupLimit(e, group),
+          }
+        : enrollmentGroupState(e, u, group);
+      const label =
+        group +
+        (preview
+          ? ''
+          : state.registered
+            ? '（已報名）'
+            : state.remaining === 0
+              ? '（名額已滿）'
+              : `（剩餘 ${state.remaining} / ${state.limit} 組）`);
+      return `<option value="${h(group)}" ${available[0] === group ? 'selected' : ''} ${!state.available ? 'disabled' : ''}>${h(label)}</option>`;
+    })
+    .join('')}</select></label>
     <h3>報名資料</h3><div class="applicant-field-grid">${config.fields.map((f) => `<div data-applicant-field="${h(f.id)}">${registrationInput(f, u)}${f.description ? '<p class="muted-copy">' + h(f.description) + '</p>' : ''}</div>`).join('')}</div>
     <p>登入電子郵件：${h(u.email)}</p><h3>繳費資訊</h3>${paymentPreview(config.payment)}${externalSystemLink(config.external)}`;
 }

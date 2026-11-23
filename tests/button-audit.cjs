@@ -221,10 +221,11 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
     await press('[data-command=tab][data-tab=scoreboard]');
     await press('[data-checkin][data-side=A]');
     await press('[data-checkin][data-side=B]');
-    for (const status of ['cancelled', 'delayed', 'started']) {
+    for (const status of ['cancelled', 'started']) {
       await press('[data-command=status][data-status=' + status + ']');
       assert.equal(await evaluate("app.match('match-a').status"), status);
     }
+    await press('[data-referee-corrections] summary');
     for (const measure of ['points', 'games'])
       for (const side of ['A', 'B']) {
         await press(
@@ -265,7 +266,7 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
   });
   await check('管理員全部分頁、解鎖、賽程儲存、直播網址與裁判指派', async () => {
     await signIn('staff@bluecourt.tw');
-    for (const tab of ['overview', 'changes', 'review', 'personnel', 'forms', 'profile']) {
+    for (const tab of ['overview', 'changes', 'review', 'roster', 'forms', 'profile']) {
       await press('[data-command=tab][data-tab=' + tab + ']');
       assert.equal(await evaluate('activeTab'), tab);
     }
@@ -286,7 +287,8 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
     await submit('[data-form=stream]');
     await press('[data-command=group-filter][data-group="女子單打"]');
     await press('[data-command=group-filter][data-group=""]');
-    await press('[data-command=tab][data-tab=personnel]');
+    await press('[data-command=tab][data-tab=changes]');
+    await press('[data-referee-assignment="demo-match-0-0-4"] summary');
     await fill('[data-form=referee][data-match="demo-match-0-0-4"]', {
       email: 'other@bluecourt.tw',
     });
@@ -361,50 +363,27 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
     );
     await press('#actionModal [data-action-close]');
   });
-  await check('系統管理員全部分頁與細項、建立賽事、管理員／系統權限指派與移除', async () => {
+  await check('系統管理員全部分頁與細項、建立賽事與賽事管理員指派移除', async () => {
     await signIn('admin@bluecourt.tw');
-    for (const tab of ['events', 'create', 'forms', 'users', 'profile']) {
+    for (const tab of ['events', 'create', 'forms', 'info', 'staff', 'profile']) {
       await press('[data-command=tab][data-tab=' + tab + ']');
       assert.equal(await evaluate('activeTab'), tab);
     }
     await press('[data-command=tab][data-tab=events]');
-    for (const tab of ['summary', 'changes', 'review', 'personnel', 'audit']) {
+    for (const tab of ['summary', 'changes', 'roster', 'audit']) {
       await press('[data-command=subtab][data-tab=' + tab + ']');
       assert.equal(await evaluate('activeSubtab'), tab);
     }
-    await press('[data-command=subtab][data-tab=review]');
+    assert.equal(
+      await evaluate("!!document.querySelector('[data-command=subtab][data-tab=review]')"),
+      false,
+    );
+    await press('[data-command=tab][data-tab=events]');
+    await press('[data-command=tab][data-tab=staff]');
+    if (!(await evaluate("document.querySelector('[data-staff-assignment-panel]').open")))
+      await press('[data-staff-assignment-panel]>summary');
     await value(
-      "const el=document.getElementById('event-select');el.value='tennis';el.dispatchEvent(new Event('change',{bubbles:true}));",
-    );
-    const reviewId = await evaluate(
-      "app.db.entries.find(r=>r.eventId==='tennis'&&r.status==='pending').id",
-    );
-    await press('[data-command=open-registration][data-entry="' + reviewId + '"]');
-    assert.equal(
-      await evaluate("document.getElementById('actionModal').dataset.reviewEntry"),
-      reviewId,
-    );
-    await press('#actionModalBody [data-command=review][data-status=approved]');
-    assert.equal(
-      await evaluate("document.querySelector('.review-detail-meta strong').textContent"),
-      '已核准',
-    );
-    await press('#actionModal .action-modal-footer [data-action-close]');
-    await press('[data-command=review][data-entry="' + reviewId + '"][data-status=rejected]');
-    assert.equal(
-      await evaluate('app.db.entries.find(r=>r.id===' + JSON.stringify(reviewId) + ').status'),
-      'rejected',
-    );
-    await press('[data-command=tab][data-tab=users]');
-    await press('[data-command=admin-role][data-user=other]');
-    await press('#actionModalPrimary');
-    assert.equal(await evaluate("app.db.users.find(u=>u.id==='other').admin"), true);
-    await press('[data-command=admin-role][data-user=other]');
-    await press('#actionModalPrimary');
-    assert.equal(await evaluate("app.db.users.find(u=>u.id==='other').admin"), false);
-    await press('[data-command=subtab][data-tab=assignments]');
-    await value(
-      "const el=document.getElementById('event-select');el.value='tennis';el.dispatchEvent(new Event('change',{bubbles:true}));",
+      "const el=document.querySelector('[data-staff-manager-event]');el.value='tennis';el.dispatchEvent(new Event('change',{bubbles:true}));",
     );
     await fill('[data-form=manager]', { email: 'other@bluecourt.tw', operation: 'add' });
     await submit('[data-form=manager]');
@@ -412,7 +391,6 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
     await fill('[data-form=manager]', { email: 'other@bluecourt.tw', operation: 'remove' });
     await submit('[data-form=manager]');
     assert(!(await evaluate("app.event('tennis').managers.includes('other')")));
-    await press('[data-command=subtab][data-tab=accounts]');
     await press('[data-command=tab][data-tab=create]');
     await fill('[data-form=event]', {
       name: '按鈕流程示範賽',
@@ -422,12 +400,16 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
       deadline: '2099-05-18',
       time: '09:00',
       courts: '2',
-      capacity: '16',
       interval: '40',
-      groups: '公開組',
       locations: '主館｜中央場\n副館｜東場',
       streamUrl: 'https://www.youtube.com/',
     });
+    await value(
+      "const row=document.querySelector('[data-form=event] [data-group-definition]');row.querySelector('[name=groupName]').value='公開組';row.querySelector('[name=groupCapacity]').value='16';",
+    );
+    await press(
+      '[data-form=event] [data-group-definition]:nth-child(2) [data-group-action=remove]',
+    );
     await submit('[data-form=event]');
     assert.equal(await evaluate('activeTab'), 'events');
     assert.equal(await evaluate('app.event(activeEvent).name'), '按鈕流程示範賽');
@@ -454,7 +436,7 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
         } else
           await press(
             '[data-command=tab][data-tab=' +
-              { changes: 'changes', review: 'review', personnel: 'personnel' }[kind] +
+              { changes: 'changes', review: 'review', roster: 'roster' }[kind] +
               ']',
           );
         if ((await evaluate('activeEvent')) !== 'badminton')
@@ -487,38 +469,49 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
         true,
       );
 
-      await page('review');
-      await query('ｐｌａｙｅｒ＠ｂｌｕｅｃｏｕｒｔ．ｔｗ');
+      if (role === 'manager') {
+        await page('review');
+        await query('ｐｌａｙｅｒ＠ｂｌｕｅｃｏｕｒｔ．ｔｗ');
+        assert.equal(
+          await evaluate(
+            "document.querySelectorAll('[data-search-item]:not([hidden]) .review-card-open').length",
+          ),
+          1,
+        );
+        await query('demo-tennis-user-0@example.test');
+        assert.equal(await evaluate("document.querySelector('[data-search-empty]').hidden"), false);
+        await press('[data-command=clear-workspace-search]');
+      }
+      await page('roster');
+      assert.equal(await evaluate("!!document.querySelector('[data-tab=personnel]')"), false);
+      await query('PLAYER@BLUECOURT.TW');
       assert.equal(
         await evaluate(
-          "document.querySelectorAll('[data-search-item]:not([hidden]) .review-card-open').length",
+          "document.querySelectorAll('[data-search-item]:not([hidden]) .participant-card').length",
         ),
         1,
       );
+      await press('[data-search-item]:not([hidden]) [data-roster-entry]');
+      assert(
+        await evaluate(
+          "document.getElementById('actionModalBody').textContent.includes('player@bluecourt.tw')",
+        ),
+      );
+      assert.equal(
+        await evaluate("!!document.querySelector('#actionModalBody [data-command=review]')"),
+        false,
+      );
+      await press('#actionModal .action-modal-footer [data-action-close]');
       await query('demo-tennis-user-0@example.test');
       assert.equal(await evaluate("document.querySelector('[data-search-empty]').hidden"), false);
       await press('[data-command=clear-workspace-search]');
-
-      await page('personnel');
-      await query('REFEREE@BLUECOURT.TW');
-      assert.equal(
-        await evaluate(
-          "document.querySelectorAll('[data-search-item]:not([hidden]) [data-form=referee]').length",
-        ),
-        1,
-      );
-      assert.equal(
-        await evaluate(
-          "document.querySelector('[data-search-item]:not([hidden]) [data-form=referee]').dataset.match",
-        ),
-        'match-a',
-      );
-      await press('[data-command=clear-workspace-search]');
     }
-    await press('[data-command=subtab][data-tab=review]');
+    await value("app.assignManager('tennis','staff@bluecourt.tw');");
+    await signIn('staff@bluecourt.tw');
+    await press('[data-command=tab][data-tab=review]');
     await query('player@bluecourt.tw');
     await value(
-      "const el=document.getElementById('event-select');el.value='volleyball';el.dispatchEvent(new Event('change',{bubbles:true}));",
+      "const el=document.getElementById('event-select');el.value='tennis';el.dispatchEvent(new Event('change',{bubbles:true}));",
     );
     assert.equal(await evaluate("document.querySelector('[data-workspace-search]').value"), '');
     await value(
@@ -570,6 +563,39 @@ module.exports = async function audit({ evaluate, send, fill, login, until, prof
       path.join(profile, 'management-search-mobile.png'),
       Buffer.from(shot.data, 'base64'),
     );
+  });
+  await require('./event-groups.cjs')({
+    evaluate,
+    send,
+    fill,
+    login,
+    until,
+    profile,
+    press,
+    submit,
+    check,
+  });
+  await require('./staff-accounts.cjs')({
+    evaluate,
+    send,
+    fill,
+    login,
+    until,
+    profile,
+    press,
+    submit,
+    check,
+  });
+  await require('./referee-scoring.cjs')({
+    evaluate,
+    send,
+    fill,
+    login,
+    until,
+    profile,
+    press,
+    submit,
+    check,
   });
   await check('手機選單實際觸控及全部連結目標檢查', async () => {
     await press('#brandHome');

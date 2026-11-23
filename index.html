@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
@@ -6,7 +6,10 @@
     <title>BlueCourt | 競賽直播與賽程平台</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,13 +18,20 @@
     <div class="page-shell">
       <header class="top-header" aria-label="主導覽">
         <div class="top-left">
-          <button class="menu-button" id="menuToggle" type="button" aria-label="開啟導覽選單" aria-expanded="false" aria-controls="navDropdown">
-            <span></span>
-            <span></span>
-            <span></span>
+          <button
+            class="menu-button"
+            id="menuToggle"
+            type="button"
+            aria-label="開啟導覽選單"
+            aria-expanded="false"
+            aria-controls="navDropdown"
+          >
+            <span class="app-icon icon-menu" aria-hidden="true"></span>
           </button>
           <a class="brand" id="brandHome" href="#home" aria-label="BlueCourt 首頁">
-            <div class="brand-mark">BC</div>
+            <div class="brand-mark">
+              <span class="app-icon icon-trophy" aria-hidden="true"></span>
+            </div>
             <span>BlueCourt</span>
           </a>
         </div>
@@ -34,14 +44,32 @@
         </nav>
 
         <div class="account-area">
-          <button class="login-button" id="accountButton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">登入</button>
+          <button
+            class="login-button"
+            id="accountButton"
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="accountMenu"
+          >
+            登入
+          </button>
           <div class="account-menu" id="accountMenu" role="menu" hidden>
             <div class="account-menu-identity">
-              <div class="avatar" id="accountMenuAvatar" aria-hidden="true">BC</div>
-              <div><strong id="accountMenuName">BlueCourt 使用者</strong><span id="accountMenuRole">個人帳戶</span></div>
+              <div class="avatar" id="accountMenuAvatar" aria-hidden="true">
+                <span class="app-icon icon-user-round"></span>
+              </div>
+              <div>
+                <strong id="accountMenuName">BlueCourt 使用者</strong
+                ><span id="accountMenuRole">個人帳戶</span>
+              </div>
             </div>
-            <button type="button" role="menuitem" id="openProfile">個人中心</button>
-            <button type="button" role="menuitem" id="menuSignOut">登出</button>
+            <button type="button" role="menuitem" id="openProfile">
+              <span class="app-icon icon-user-round" aria-hidden="true"></span> 個人中心
+            </button>
+            <button type="button" role="menuitem" id="menuSignOut">
+              <span class="app-icon icon-log-out" aria-hidden="true"></span> 登出
+            </button>
           </div>
         </div>
       </header>
@@ -67,12 +95,24 @@
         </div>
       </div>
 
-      <div class="page-back-bar"><button id="pageBack" class="text-button" type="button" disabled>← 回上一頁</button></div>
+      <div class="page-back-bar" hidden>
+        <button id="pageBack" class="text-button" type="button" disabled>
+          <span class="app-icon icon-arrow-left" aria-hidden="true"></span> 回上一頁
+        </button>
+      </div>
       <main class="home-page" id="home">
         <section class="live-home-section" id="live">
-          <div class="section-head"><div><p class="section-kicker" id="liveDate"></p><h1>今日即時賽況</h1></div></div>
-          <div id="heroScore"></div><div id="liveMatchList"></div>
-          <button class="text-button" data-public-tab="live" type="button">查看今日全部場次 →</button>
+          <div class="section-head">
+            <div>
+              <p class="section-kicker" id="liveDate"></p>
+              <h1>今日即時賽況</h1>
+            </div>
+          </div>
+          <div id="heroScore"></div>
+          <div id="liveMatchList"></div>
+          <button class="text-button" data-public-tab="live" type="button">
+            查看今日全部場次 <span class="app-icon icon-arrow-right" aria-hidden="true"></span>
+          </button>
         </section>
         <section class="showcase-section" id="events">
           <div class="section-head">
@@ -86,14 +126,13 @@
                 <option value="recommended">推薦</option>
                 <option value="soonest">即將開始</option>
                 <option value="popular">最多人報名</option>
-
               </select>
             </label>
           </div>
 
           <div class="event-filters" aria-label="賽事篩選">
             <label class="event-search">
-              <span aria-hidden="true">⌕</span>
+              <span class="app-icon icon-search" aria-hidden="true"></span>
               <input id="eventSearch" type="search" placeholder="搜尋賽事、組別或地點" />
             </label>
             <div class="filter-chips" role="group" aria-label="賽事類型">
@@ -106,70 +145,181 @@
           </div>
 
           <div class="showcase-grid" id="eventGrid"></div>
-          <p class="empty-results" id="emptyResults" hidden>找不到符合條件的賽事，試試其他關鍵字或篩選條件。</p>
+          <p class="empty-results" id="emptyResults" hidden>
+            找不到符合條件的賽事，試試其他關鍵字或篩選條件。
+          </p>
         </section>
 
         <section class="schedule-section" id="schedule">
-          <div class="section-head"><div><p class="section-kicker">比賽安排</p><h2>最新賽程</h2></div><button class="text-button" data-public-tab="schedule" type="button">全部賽程</button></div>
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">比賽安排</p>
+              <h2>最新賽程</h2>
+            </div>
+            <button class="text-button" data-public-tab="schedule" type="button">全部賽程</button>
+          </div>
           <div id="homeScheduleList"></div>
         </section>
-
       </main>
 
       <main class="role-workspace" id="roleWorkspace" hidden>
-        <div class="workspace-heading"><div><p class="section-kicker" id="workspaceRoleLabel"></p><h1 id="workspaceTitle"></h1></div></div>
+        <div class="workspace-heading">
+          <div>
+            <p class="section-kicker" id="workspaceRoleLabel"></p>
+            <h1 id="workspaceTitle"></h1>
+          </div>
+        </div>
         <div id="workspaceContent"></div>
       </main>
-      <main class="enrollment-page" id="enrollmentPage" hidden><div id="enrollmentContent"></div></main>
+      <main class="enrollment-page" id="enrollmentPage" hidden>
+        <div id="enrollmentContent"></div>
+      </main>
       <main class="registration-page" id="registrationPage" hidden>
         <div class="registration-card">
-          <a class="modal-brand registration-brand" id="registrationBrandHome" href="#home"><span class="brand-mark">BC</span><span>BlueCourt</span></a>
+          <a class="modal-brand registration-brand" id="registrationBrandHome" href="#home"
+            ><span class="brand-mark"
+              ><span class="app-icon icon-trophy" aria-hidden="true"></span></span
+            ><span>BlueCourt</span></a
+          >
           <p class="section-kicker">建立帳戶</p>
           <h1>加入 BlueCourt</h1>
           <p class="modal-copy">註冊後即為選手，可報名比賽。工作人員權限由管理員指派。</p>
           <form id="registerForm">
-            <label class="form-field">顯示名稱<input type="text" name="name" placeholder="輸入姓名或暱稱" required /></label>
-            <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
-            <label class="form-field">密碼<input type="password" name="password" placeholder="至少 8 個字元" minlength="8" required /></label>
-            <p class="form-error" id="registerError" role="alert"></p><button class="modal-submit" type="submit">建立選手帳戶</button>
+            <label class="form-field"
+              >顯示名稱<input type="text" name="name" placeholder="輸入姓名或暱稱" required
+            /></label>
+            <label class="form-field"
+              >電子郵件<input type="email" name="email" placeholder="name@example.com" required
+            /></label>
+            <label class="form-field"
+              >密碼<input
+                type="password"
+                name="password"
+                placeholder="至少 8 個字元"
+                minlength="8"
+                required
+            /></label>
+            <p class="form-error" id="registerError" role="alert"></p>
+            <button class="modal-submit" type="submit">建立選手帳戶</button>
           </form>
-          <p class="register-prompt">已經有帳號？ <button class="register-link" id="registrationLogin" type="button">返回登入</button></p>
+          <p class="register-prompt">
+            已經有帳號？
+            <button class="register-link" id="registrationLogin" type="button">返回登入</button>
+          </p>
         </div>
       </main>
     </div>
 
     <div class="modal-backdrop" id="loginModal" hidden>
       <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
-        <button class="modal-close" type="button" data-close-modal aria-label="關閉">×</button>
-        <a class="modal-brand" id="loginModalBrand" href="#home" aria-label="返回 BlueCourt 首頁"><div class="brand-mark">BC</div><span>BlueCourt</span></a>
+        <button class="modal-close" type="button" data-close-modal aria-label="關閉">
+          <span class="app-icon icon-x" aria-hidden="true"></span>
+        </button>
+        <a class="modal-brand" id="loginModalBrand" href="#home" aria-label="返回 BlueCourt 首頁"
+          ><div class="brand-mark">
+            <span class="app-icon icon-trophy" aria-hidden="true"></span>
+          </div>
+          <span>BlueCourt</span></a
+        >
         <div id="loginView">
           <p class="section-kicker">帳號登入 · 觀眾免登入</p>
           <h2 id="loginTitle">登入 BlueCourt</h2>
-          <p class="modal-copy" id="loginDescription">登入後查看個人報名狀態、隊伍資訊和下一場賽程。</p>
+          <p class="modal-copy" id="loginDescription">
+            登入後查看個人報名狀態、隊伍資訊和下一場賽程。
+          </p>
           <section class="quick-login" aria-labelledby="quickLoginTitle">
             <h3 id="quickLoginTitle">快速登入</h3>
-            <button class="social-login-button" type="button" data-social-login="LINE" aria-describedby="socialLoginStatus"><span class="social-login-mark line-mark" aria-hidden="true">LINE</span><span>使用 LINE 繼續</span><small>即將開放</small></button>
-            <button class="social-login-button" type="button" data-social-login="Google" aria-describedby="socialLoginStatus"><span class="social-login-mark google-mark" aria-hidden="true">G</span><span>使用 Google 繼續</span><small>即將開放</small></button>
-            <button class="social-login-button" type="button" data-social-login="Facebook" aria-describedby="socialLoginStatus"><span class="social-login-mark facebook-mark" aria-hidden="true">f</span><span>使用 Facebook 繼續</span><small>即將開放</small></button>
-            <p id="socialLoginStatus" class="social-login-status" role="status" aria-live="polite">其他帳號連動即將開放，目前可使用電子郵件登入或註冊。</p>
+            <button
+              class="social-login-button"
+              type="button"
+              data-social-login="LINE"
+              aria-describedby="socialLoginStatus"
+            >
+              <img
+                class="social-login-icon"
+                src="assets/icons/brand-line.svg"
+                alt=""
+                aria-hidden="true"
+                width="28"
+                height="28"
+              /><span>使用 LINE 繼續</span><small>即將開放</small>
+            </button>
+            <button
+              class="social-login-button"
+              type="button"
+              data-social-login="Google"
+              aria-describedby="socialLoginStatus"
+            >
+              <img
+                class="social-login-icon"
+                src="assets/icons/brand-google.svg"
+                alt=""
+                aria-hidden="true"
+                width="28"
+                height="28"
+              /><span>使用 Google 繼續</span><small>即將開放</small>
+            </button>
+            <button
+              class="social-login-button"
+              type="button"
+              data-social-login="Facebook"
+              aria-describedby="socialLoginStatus"
+            >
+              <img
+                class="social-login-icon"
+                src="assets/icons/brand-facebook.svg"
+                alt=""
+                aria-hidden="true"
+                width="28"
+                height="28"
+              /><span>使用 Facebook 繼續</span><small>即將開放</small>
+            </button>
+            <p id="socialLoginStatus" class="social-login-status" role="status" aria-live="polite">
+              其他帳號連動即將開放，目前可使用電子郵件登入或註冊。
+            </p>
           </section>
           <div class="login-divider"><span>或使用電子郵件登入</span></div>
           <form id="loginForm">
-            <label class="form-field">電子郵件<input type="email" name="email" placeholder="name@example.com" required /></label>
-            <label class="form-field">密碼<input type="password" name="password" placeholder="輸入密碼" minlength="8" required /></label>
-            <p class="form-error" id="loginError" role="alert"></p><button class="modal-submit" id="submitLogin" type="submit">登入</button>
+            <label class="form-field"
+              >電子郵件<input type="email" name="email" placeholder="name@example.com" required
+            /></label>
+            <label class="form-field"
+              >密碼<input
+                type="password"
+                name="password"
+                placeholder="輸入密碼"
+                minlength="8"
+                required
+            /></label>
+            <p class="form-error" id="loginError" role="alert"></p>
+            <button class="modal-submit" id="submitLogin" type="submit">登入</button>
           </form>
-          <details class="demo-access"><summary>本機功能體驗帳號</summary>
-            <p>體驗帳號密碼：BlueCourt2026!<br>選手 player@bluecourt.tw<br>管理員 staff@bluecourt.tw<br>排球聯賽管理員 volleyball-manager@bluecourt.tw<br>裁判 referee@bluecourt.tw<br>系統管理員 admin@bluecourt.tw</p>
+          <details class="demo-access">
+            <summary>本機功能體驗帳號</summary>
+            <p>
+              體驗帳號密碼：BlueCourt2026!<br />選手 player@bluecourt.tw<br />管理員
+              staff@bluecourt.tw<br />排球聯賽管理員 volleyball-manager@bluecourt.tw<br />裁判
+              referee@bluecourt.tw<br />系統管理員 admin@bluecourt.tw
+            </p>
           </details>
-          <p class="register-prompt">還沒有帳號？ <button class="register-link" id="showRegister" type="button">立即註冊</button></p>
+          <p class="register-prompt">
+            還沒有帳號？
+            <button class="register-link" id="showRegister" type="button">立即註冊</button>
+          </p>
         </div>
       </section>
     </div>
 
     <div class="modal-backdrop" id="actionModal" hidden>
-      <section class="account-modal action-modal" role="dialog" aria-modal="true" aria-labelledby="actionModalTitle">
-        <button class="modal-close" type="button" data-action-close aria-label="關閉">×</button>
+      <section
+        class="account-modal action-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="actionModalTitle"
+      >
+        <button class="modal-close" type="button" data-action-close aria-label="關閉">
+          <span class="app-icon icon-x" aria-hidden="true"></span>
+        </button>
         <p class="section-kicker" id="actionModalKicker">BlueCourt</p>
         <h2 id="actionModalTitle">賽事資訊</h2>
         <div class="action-modal-body" id="actionModalBody"></div>
@@ -182,11 +332,17 @@
 
     <script src="demo-data.js"></script>
     <script src="registration-forms.js"></script>
+    <script src="pickleball-scoring.js"></script>
     <script src="competition.js"></script>
+    <script src="icons.js"></script>
     <script src="workspace-views.js"></script>
     <script src="registration-form-views.js"></script>
+    <script src="event-groups.js"></script>
     <script src="form-editor.js"></script>
     <script src="event-navigation.js"></script>
+    <script src="staff-accounts.js"></script>
+    <script src="participant-roster.js"></script>
+    <script src="referee-scoring.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

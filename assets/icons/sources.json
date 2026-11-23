@@ -1,0 +1,233 @@
+[
+  {
+    "file": "menu.svg",
+    "icon": "lucide:menu",
+    "source": "https://api.iconify.design/lucide/menu.svg",
+    "license": "ISC / MIT",
+    "sha256": "0ea96120167e172bf461c419b71b5b9df71af8c5504f5d964c8940f0d126d82d"
+  },
+  {
+    "file": "x.svg",
+    "icon": "lucide:x",
+    "source": "https://api.iconify.design/lucide/x.svg",
+    "license": "ISC / MIT",
+    "sha256": "895b97b88dbb40445f230d25fed5f150fd54bd76f5022c324ee585b456d141b7"
+  },
+  {
+    "file": "search.svg",
+    "icon": "lucide:search",
+    "source": "https://api.iconify.design/lucide/search.svg",
+    "license": "ISC / MIT",
+    "sha256": "6f70421477cdb485bdce4f1765e1885bee5dc2f303f29d0b4a48a1bbc7dd8e21"
+  },
+  {
+    "file": "arrow-left.svg",
+    "icon": "lucide:arrow-left",
+    "source": "https://api.iconify.design/lucide/arrow-left.svg",
+    "license": "ISC / MIT",
+    "sha256": "59748c7cfa5bf90e17e75d16ad8136a3ac3df4b64206f4ed777580e1c073af3d"
+  },
+  {
+    "file": "arrow-right.svg",
+    "icon": "lucide:arrow-right",
+    "source": "https://api.iconify.design/lucide/arrow-right.svg",
+    "license": "ISC / MIT",
+    "sha256": "96e94ecf27fff5c0f45d9feccad2b9f8dad364441b9ff67d07dd8046747f3bcc"
+  },
+  {
+    "file": "arrow-up.svg",
+    "icon": "lucide:arrow-up",
+    "source": "https://api.iconify.design/lucide/arrow-up.svg",
+    "license": "ISC / MIT",
+    "sha256": "69445e94e64db5dbd9b76cf375dc8bf6e527f8163831ead8a76d7712513f30f8"
+  },
+  {
+    "file": "arrow-down.svg",
+    "icon": "lucide:arrow-down",
+    "source": "https://api.iconify.design/lucide/arrow-down.svg",
+    "license": "ISC / MIT",
+    "sha256": "d71f65bfd7229f9cdb172eaef82ba5b07ee716af3107da4ecb749f164468f7b3"
+  },
+  {
+    "file": "chevron-down.svg",
+    "icon": "lucide:chevron-down",
+    "source": "https://api.iconify.design/lucide/chevron-down.svg",
+    "license": "ISC / MIT",
+    "sha256": "8b8ec2576e349a4bd35ded2e279a6eff396cc55adf353bc58bbe52c1338a2ba6"
+  },
+  {
+    "file": "chevron-up.svg",
+    "icon": "lucide:chevron-up",
+    "source": "https://api.iconify.design/lucide/chevron-up.svg",
+    "license": "ISC / MIT",
+    "sha256": "1501a16dac7c3e430d9a7cc4d9c8c8f9b4453987a907e22b56f12844c435acc5"
+  },
+  {
+    "file": "external-link.svg",
+    "icon": "lucide:external-link",
+    "source": "https://api.iconify.design/lucide/external-link.svg",
+    "license": "ISC / MIT",
+    "sha256": "65de19999efa715abc5644ae78e2974e049d2344fd3ec6d9c4c05dde44ba37eb"
+  },
+  {
+    "file": "play.svg",
+    "icon": "lucide:play",
+    "source": "https://api.iconify.design/lucide/play.svg",
+    "license": "ISC / MIT",
+    "sha256": "34346831c88057ebc64caa1472f82cc80631be27627ce916478d2f7f1c158b1f"
+  },
+  {
+    "file": "trophy.svg",
+    "icon": "lucide:trophy",
+    "source": "https://api.iconify.design/lucide/trophy.svg",
+    "license": "ISC / MIT",
+    "sha256": "3e91ee017ac088f5a0162d5bbd8431225e2718e2d6bdf9d3978a3f420f0db2f6"
+  },
+  {
+    "file": "user-round.svg",
+    "icon": "lucide:user-round",
+    "source": "https://api.iconify.design/lucide/user-round.svg",
+    "license": "ISC / MIT",
+    "sha256": "a90b0e44a8fb8e028612dc3002558aaede50d63121917ec243f6540d4fcf8ec1"
+  },
+  {
+    "file": "log-in.svg",
+    "icon": "lucide:log-in",
+    "source": "https://api.iconify.design/lucide/log-in.svg",
+    "license": "ISC / MIT",
+    "sha256": "3cc218e0d985a729e2b1f18fa168c1d6d3527811644106da3c94e5b11691dc43"
+  },
+  {
+    "file": "log-out.svg",
+    "icon": "lucide:log-out",
+    "source": "https://api.iconify.design/lucide/log-out.svg",
+    "license": "ISC / MIT",
+    "sha256": "cbf4548844851e935770dd546e1071886a46f0be5451ac286c9dbaaa705656b9"
+  },
+  {
+    "file": "plus.svg",
+    "icon": "lucide:plus",
+    "source": "https://api.iconify.design/lucide/plus.svg",
+    "license": "ISC / MIT",
+    "sha256": "a4f7cfd90901434e9ccb9d780f513293db060eb3190f61722d753bfe3f347652"
+  },
+  {
+    "file": "trash-2.svg",
+    "icon": "lucide:trash-2",
+    "source": "https://api.iconify.design/lucide/trash-2.svg",
+    "license": "ISC / MIT",
+    "sha256": "210cc548384ac7f27342ac20875d2b35ee60c32199d00e6354538cc48043ca1e"
+  },
+  {
+    "file": "copy.svg",
+    "icon": "lucide:copy",
+    "source": "https://api.iconify.design/lucide/copy.svg",
+    "license": "ISC / MIT",
+    "sha256": "fb6709e5235af79ff48a6140e191a76c737e96261ed8792db17b4356f843600b"
+  },
+  {
+    "file": "circle.svg",
+    "icon": "lucide:circle",
+    "source": "https://api.iconify.design/lucide/circle.svg",
+    "license": "ISC / MIT",
+    "sha256": "988508a8a98ea3ce242c06fa0197e0902982e25002f2e1b8e77f6f856573a668"
+  },
+  {
+    "file": "brand-line.svg",
+    "icon": "simple-icons:line",
+    "source": "https://api.iconify.design/simple-icons/line.svg?color=%2306c755",
+    "license": "CC0-1.0",
+    "sha256": "8b36bd55b65bdebc431c60f5031eb322d889af54cf84755cce3265c079ae3cef"
+  },
+  {
+    "file": "brand-facebook.svg",
+    "icon": "simple-icons:facebook",
+    "source": "https://api.iconify.design/simple-icons/facebook.svg?color=%231877f2",
+    "license": "CC0-1.0",
+    "sha256": "6dcc14a27b6f735f514fac3ae432106b4240f6ec74644a7f79439a0a05d040c0"
+  },
+  {
+    "file": "brand-google.svg",
+    "icon": "logos:google-icon",
+    "source": "https://api.iconify.design/logos/google-icon.svg",
+    "license": "CC0-1.0",
+    "sha256": "030f5843489563e9ced6961db24a87872c08b35167591b81785befbcd4803f66"
+  },
+  {
+    "file": "info.svg",
+    "icon": "lucide:info",
+    "source": "https://api.iconify.design/lucide/info.svg",
+    "license": "ISC / MIT",
+    "sha256": "8f040efadaa7d677a2c4c784cdc83a3df08b1a28d969f18528d30de9e49a863f"
+  },
+  {
+    "file": "check.svg",
+    "icon": "lucide:check",
+    "source": "https://api.iconify.design/lucide/check.svg",
+    "license": "ISC / MIT",
+    "sha256": "d7b81112edfc7feac25be621fb4cde8018d37ca6eb9ce8825f30cf10d6d2e5c8"
+  },
+  {
+    "file": "shuffle.svg",
+    "icon": "lucide:shuffle",
+    "source": "https://api.iconify.design/lucide/shuffle.svg",
+    "license": "ISC / MIT",
+    "sha256": "f48f5f24e6c59f03dff550a4a39e4986f0fb9a9a1fd744dfab84ea90e659e857"
+  },
+  {
+    "file": "rotate-ccw.svg",
+    "icon": "lucide:rotate-ccw",
+    "source": "https://api.iconify.design/lucide/rotate-ccw.svg",
+    "license": "ISC / MIT",
+    "sha256": "6b5afc1594a714d7cda5e31687162228e3103e0610742db16b29a8e50df62565"
+  },
+  {
+    "file": "pause.svg",
+    "icon": "lucide:pause",
+    "source": "https://api.iconify.design/lucide/pause.svg",
+    "license": "ISC / MIT",
+    "sha256": "f26edfb4e4293387a2d74a0a6178b37f9299ff73d485acba8a4963f3b5e660e0"
+  },
+  {
+    "file": "arrow-up-down.svg",
+    "icon": "lucide:arrow-up-down",
+    "source": "https://api.iconify.design/lucide/arrow-up-down.svg",
+    "license": "ISC / MIT",
+    "sha256": "081d4bd31fb48681522025b22d62f3c6347d07bcf51a14bca5af07a97f07d65e"
+  },
+  {
+    "file": "timer.svg",
+    "icon": "lucide:timer",
+    "source": "https://api.iconify.design/lucide/timer.svg",
+    "license": "ISC / MIT",
+    "sha256": "45a896e7f74a6cad3a2c03fdcab8e403e20c3c53725c3032c53ee52285579665"
+  },
+  {
+    "file": "lock-keyhole.svg",
+    "icon": "lucide:lock-keyhole",
+    "source": "https://api.iconify.design/lucide/lock-keyhole.svg",
+    "license": "ISC / MIT",
+    "sha256": "fde5fc1dc1668509a705629f7c3e5357a89aa13c8ffb3a3b5f51473046bd9651"
+  },
+  {
+    "file": "sliders-horizontal.svg",
+    "icon": "lucide:sliders-horizontal",
+    "source": "https://api.iconify.design/lucide/sliders-horizontal.svg",
+    "license": "ISC / MIT",
+    "sha256": "b076f950320775bdd4976f21c40f11a2c0aa1c359708e52f84376db6d3286c67"
+  },
+  {
+    "file": "calendar-days.svg",
+    "icon": "lucide:calendar-days",
+    "source": "https://api.iconify.design/lucide/calendar-days.svg",
+    "license": "ISC / MIT",
+    "sha256": "5f8c009c6b80730604a2811eb123770b9b6bfea6db2627d58d24f0ebe72080a0"
+  },
+  {
+    "file": "map-pin.svg",
+    "icon": "lucide:map-pin",
+    "source": "https://api.iconify.design/lucide/map-pin.svg",
+    "license": "ISC / MIT",
+    "sha256": "912d86f2973fdd05872ddb442aa01873511117aa3d1d8a269c66f1a91e47f4a6"
+  }
+]

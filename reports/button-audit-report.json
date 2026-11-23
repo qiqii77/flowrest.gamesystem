@@ -1,5 +1,5 @@
 {
-  "pointerClicks": 239,
+  "pointerClicks": 336,
   "steps": [
     "首頁主導覽、所有下拉連結、篩選、排序與外部直播",
     "未報名賽事資訊保留賽事範圍，今日與完整賽程切換",
@@ -8,11 +8,15 @@
     "裁判報到、開始／延後／取消、大小比分、歸零、送出與修正請求",
     "管理員全部分頁、解鎖、賽程儲存、直播網址與裁判指派",
     "表單題目選取／分頁、複製／刪除／上下移動、顯示條件新增移除與預覽儲存",
-    "系統管理員全部分頁與細項、建立賽事、管理員／系統權限指派與移除",
+    "系統管理員全部分頁與細項、建立賽事與賽事管理員指派移除",
     "賽事管理員及系統管理員三頁搜尋、範圍隔離、草稿保留與狀態更新",
+    "項目獨立名額、選手多項報名與審核狀態、自動延遲及完賽灰化",
+    "圖示來源載入、首頁隱藏返回鍵與批次建帳角色及賽事範圍",
+    "一鍵批次開立、帳密CSV下載、角色登入及登出清除初始密碼",
+    "影片匹克球雙打：先發站位、逐球換發、暫停復原、換邊及雙方確認鎖定",
     "手機選單實際觸控及全部連結目標檢查"
   ],
-  "commandCount": 34,
+  "commandCount": 33,
   "commands": [
     "event-detail",
     "today-live",
@@ -43,11 +47,10 @@
     "remove-condition",
     "preview-schema",
     "subtab",
-    "open-registration",
-    "review",
-    "admin-role",
     "close-registration",
-    "clear-workspace-search"
+    "clear-workspace-search",
+    "open-registration",
+    "review"
   ],
   "unavailable": [
     "LINE / Google / Facebook: 明確提示尚未開放第三方授權",

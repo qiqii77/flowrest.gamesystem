@@ -69,7 +69,6 @@ test('manager only has access to their event and cannot grant system or manager 
   );
   assert.throws(() => app.closeRegistration('volleyball'), /沒有這場賽事/);
   assert.throws(() => app.assignManager('tennis', 'other@bluecourt.tw'), /只有系統管理員/);
-  assert.throws(() => app.setAdmin('player', true), /只有系統管理員/);
   assert.throws(() => app.createEvent({}), /只有系統管理員/);
 });
 test('system admin can inspect every event and grant/revoke scoped manager access', () => {
@@ -891,4 +890,552 @@ test('event information edits are event-scoped, validated and cannot change perm
   assert.equal(admin.event('volleyball').info.organizer, '主辦單位');
   const player = setup('player');
   assert.throws(() => player.updateEventInfo('badminton', data), /沒有這場賽事/);
+});
+
+function staffRow(overrides = {}) {
+  return {
+    name: '批次工作人員',
+    email: 'batch@example.tw',
+    password: 'StaffStart2026!',
+    role: 'manager',
+    eventId: 'tennis',
+    matchId: '',
+    ...overrides,
+  };
+}
+test('batch staff accounts are admin-only and never change the current login session', async () => {
+  for (const role of ['player', 'manager', 'referee'])
+    await assert.rejects(setup(role).createStaffAccounts([staffRow()]), /只有系統管理員/);
+  const app = setup('admin'),
+    count = app.db.users.length;
+  const result = await app.createStaffAccounts([
+    staffRow({ email: 'BATCH-MANAGER@example.tw' }),
+    staffRow({ email: 'batch-referee@example.tw', role: 'referee' }),
+  ]);
+  assert.equal(result.length, 2);
+  assert.equal(app.current().id, 'admin');
+  app.load();
+  assert.equal(app.db.users.length, count + 2);
+  const manager = app.db.users.find((u) => u.email === 'batch-manager@example.tw');
+  const referee = app.db.users.find((u) => u.email === 'batch-referee@example.tw');
+  assert.equal(app.role(manager), 'manager');
+  assert.deepEqual(
+    app.db.events.filter((e) => e.managers.includes(manager.id)).map((e) => e.id),
+    ['tennis'],
+  );
+  assert.equal(app.role(referee), 'referee');
+  assert(app.event('tennis').referees.includes(referee.id));
+  assert(!JSON.stringify(app.db).includes('StaffStart2026!'));
+  assert(result.every((r) => !r.password && !r.hash && !r.salt));
+  await app.login(referee.email, 'StaffStart2026!');
+  assert.equal(app.role(), 'referee');
+  assert.throws(() => app.score('match-a', 'A', 1), /被指派/);
+  await app.login(manager.email, 'StaffStart2026!');
+  assert.deepEqual(
+    app.managedEvents().map((e) => e.id),
+    ['tennis'],
+  );
+});
+test('one invalid staff row prevents all batch writes and cannot grant system-admin access', async () => {
+  const app = setup('admin'),
+    before = JSON.stringify(app.db);
+  const invalid = [
+    { role: 'admin' },
+    { email: 'player@bluecourt.tw' },
+    { email: 'bad' },
+    { name: '' },
+    { password: 'short' },
+    { eventId: 'missing' },
+    { matchId: 'match-a' },
+    { role: 'referee', eventId: 'tennis', matchId: 'match-a' },
+    { role: 'referee', eventId: 'badminton', matchId: 'match-a' },
+  ];
+  for (const row of invalid) {
+    await assert.rejects(
+      app.createStaffAccounts([staffRow({ email: 'valid@example.tw' }), staffRow(row)]),
+    );
+    app.load();
+    assert.equal(JSON.stringify(app.db), before);
+  }
+  await assert.rejects(
+    app.createStaffAccounts([staffRow(), staffRow({ email: 'BATCH@EXAMPLE.TW' })]),
+    /重複/,
+  );
+  await assert.rejects(app.createStaffAccounts([]), /1 至 50/);
+  await assert.rejects(
+    app.createStaffAccounts(
+      Array.from({ length: 51 }, (_, i) => staffRow({ email: i + '@example.tw' })),
+    ),
+    /1 至 50/,
+  );
+});
+test('batch referee match assignment preserves event scope and can revoke unassigned staff membership', async () => {
+  const app = setup('admin');
+  const match = app.db.matches.find(
+    (m) =>
+      m.eventId === 'badminton' &&
+      !m.refereeId &&
+      !m.locked &&
+      !['finished', 'cancelled'].includes(m.status),
+  );
+  assert(match);
+  const rows = [
+    staffRow({
+      email: 'assigned@example.tw',
+      role: 'referee',
+      eventId: 'badminton',
+      matchId: match.id,
+    }),
+    staffRow({ email: 'waiting@example.tw', role: 'referee', eventId: 'tennis' }),
+  ];
+  const [assigned, waiting] = await app.createStaffAccounts(rows);
+  assert.equal(app.match(match.id).refereeId, assigned.id);
+  assert.throws(() => app.revokeEventReferee('badminton', assigned.id), /先解除/);
+  app.assignReferee(match.id, '');
+  app.revokeEventReferee('badminton', assigned.id);
+  assert.equal(app.role(app.db.users.find((u) => u.id === assigned.id)), 'player');
+  app.storage.setItem(SESSION, 'manager');
+  assert.throws(() => app.revokeEventReferee('tennis', waiting.id), /沒有這場賽事/);
+  app.storage.setItem(SESSION, 'admin');
+  app.revokeEventReferee('tennis', waiting.id);
+  assert.equal(app.role(app.db.users.find((u) => u.id === waiting.id)), 'player');
+});
+test('batch hashing rechecks account conflicts and permission changes before committing', async () => {
+  const app = setup('admin'),
+    other = new CompetitionStore(app.storage);
+  const pending = app.createStaffAccounts([staffRow({ email: 'racing@example.tw' })]);
+  other.load();
+  other.db.users.push({
+    ...other.db.users.find((u) => u.id === 'player'),
+    id: 'concurrent-registration',
+    name: '競爭帳號',
+    email: 'racing@example.tw',
+  });
+  other.save();
+  await assert.rejects(pending);
+  app.load();
+  assert.equal(app.db.users.filter((u) => u.email === 'racing@example.tw').length, 1);
+  assert.equal(
+    app.db.events.some((e) =>
+      e.managers.some(
+        (uid) => app.db.users.find((u) => u.id === uid)?.email === 'racing@example.tw',
+      ),
+    ),
+    false,
+  );
+  const denied = app.createStaffAccounts([staffRow({ email: 'denied@example.tw' })]);
+  app.storage.setItem(SESSION, 'player');
+  await assert.rejects(denied, /只有系統管理員/);
+  app.load();
+  assert(!app.db.users.some((u) => u.email === 'denied@example.tw'));
+});
+
+function groupedEvent(app) {
+  return app.createEvent({
+    name: '分項名額測試賽',
+    sport: '羽球',
+    location: '主館',
+    date: '2099-05-20',
+    deadline: '2099-05-18',
+    time: '09:00',
+    courts: 2,
+    interval: 40,
+    locations: '主館｜A1\n主館｜A2',
+    groupDefinitions: [
+      { name: '男子單打', capacity: 1 },
+      { name: '女子單打', capacity: 2 },
+    ],
+  });
+}
+test('event categories keep independent limits and one player may enter different groups', () => {
+  const app = setup('admin'),
+    e = groupedEvent(app);
+  assert.deepEqual(e.groups, ['男子單打', '女子單打']);
+  assert.equal(e.capacity, 3);
+  assert.deepEqual({ ...e.groupLimits }, { 男子單打: 1, 女子單打: 2 });
+  app.storage.setItem(SESSION, 'player');
+  app.enroll(e.id, { group: '男子單打', team: '選手甲' });
+  app.enroll(e.id, { group: '女子單打', team: '選手甲' });
+  assert.equal(app.db.entries.filter((r) => r.eventId === e.id && r.userId === 'player').length, 2);
+  assert.throws(() => app.enroll(e.id, { group: '男子單打', team: '重複' }), /已報名此項目/);
+  app.storage.setItem(SESSION, 'other');
+  assert.throws(
+    () => app.enroll(e.id, { group: '男子單打', team: '選手乙' }),
+    /此項目報名名額已滿/,
+  );
+  app.enroll(e.id, { group: '女子單打', team: '選手乙' });
+  const rejected = app.db.entries.find((r) => r.eventId === e.id && r.group === '男子單打').id;
+  app.storage.setItem(SESSION, 'admin');
+  app.review(rejected, 'rejected');
+  app.storage.setItem(SESSION, 'other');
+  app.enroll(e.id, { group: '男子單打', team: '選手乙' });
+  app.storage.setItem(SESSION, 'admin');
+  assert.throws(() => app.review(rejected, 'approved'), /名額已滿/);
+});
+test('category definition validation is atomic and existing entry counts protect category limits', () => {
+  const app = setup('admin'),
+    count = app.db.events.length;
+  const base = {
+    name: '測試',
+    sport: '羽球',
+    location: '主館',
+    date: '2099-05-20',
+    deadline: '2099-05-18',
+    time: '09:00',
+    courts: 1,
+    interval: 30,
+  };
+  for (const definitions of [
+    [],
+    [{ name: 'A', capacity: 0 }],
+    [{ name: 'A', capacity: 1.5 }],
+    [
+      { name: 'A', capacity: 2 },
+      { name: 'A', capacity: 3 },
+    ],
+    [{ name: '', capacity: 2 }],
+  ]) {
+    assert.throws(() => app.createEvent({ ...base, groupDefinitions: definitions }));
+    assert.equal(app.db.events.length, count);
+  }
+  const e = groupedEvent(app);
+  app.storage.setItem(SESSION, 'player');
+  app.enroll(e.id, { group: '女子單打', team: '甲' });
+  app.storage.setItem(SESSION, 'other');
+  app.enroll(e.id, { group: '女子單打', team: '乙' });
+  app.storage.setItem(SESSION, 'admin');
+  const config = Forms.getConfig(e);
+  config.groupLimits = { 男子單打: 1, 女子單打: 1 };
+  assert.throws(() => app.saveRegistrationForm(e.id, config), /不能小於/);
+  config.groupLimits['女子單打'] = 3;
+  app.saveRegistrationForm(e.id, config);
+  assert.equal(app.event(e.id).groupLimits['女子單打'], 3);
+});
+test('scheduled matches automatically become delayed using Taiwan time without changing scores or active matches', () => {
+  const app = setup('admin'),
+    m = app.match('match-a');
+  m.status = 'pending';
+  m.date = '2035-05-01';
+  m.time = '10:00';
+  const future = { ...m, id: 'future-auto', time: '11:00' };
+  const started = { ...m, id: 'active-auto', status: 'started' };
+  const finished = { ...m, id: 'finished-auto', status: 'finished', locked: true };
+  const cancelled = { ...m, id: 'cancelled-auto', status: 'cancelled' };
+  app.db.matches.push(future, started, finished, cancelled);
+  app.save();
+  let notifications = 0;
+  app.onchange = () => notifications++;
+  app.syncScheduleStatus(new Date('2035-05-01T10:00:00+08:00'));
+  assert.equal(app.match(m.id).status, 'pending');
+  app.syncScheduleStatus(new Date('2035-05-01T10:00:01+08:00'));
+  assert.equal(app.match(m.id).status, 'delayed');
+  assert.equal(app.match(m.id).autoDelayed, true);
+  assert.equal(app.match(m.id).scoreA, m.scoreA);
+  assert.equal(app.match('future-auto').status, 'pending');
+  assert.equal(app.match('active-auto').status, 'started');
+  assert.equal(app.match('finished-auto').status, 'finished');
+  assert.equal(app.match('cancelled-auto').status, 'cancelled');
+  assert.equal(notifications, 0);
+  app.match(m.id).time = '12:00';
+  app.save();
+  app.syncScheduleStatus(new Date('2035-05-01T10:01:00+08:00'));
+  assert.equal(app.match(m.id).status, 'pending');
+  assert.equal(app.match(m.id).autoDelayed, undefined);
+});
+test('referee final confirmation immediately stores a finished match and completion time', () => {
+  const app = setup('referee');
+  app.checkin('match-a', 'A', true);
+  app.checkin('match-a', 'B', true);
+  app.setStatus('match-a', 'started');
+  app.score('match-a', 'A', 1);
+  app.finalize('match-a', app.match('match-a').revision);
+  app.load();
+  assert.equal(app.match('match-a').status, 'finished');
+  assert.equal(app.match('match-a').locked, true);
+  assert(Number.isFinite(Date.parse(app.match('match-a').completedAt)));
+  app.syncScheduleStatus(new Date('2099-01-01T12:00:00+08:00'));
+  assert.equal(app.match('match-a').status, 'finished');
+});
+
+const Pickleball = require('../pickleball-scoring.js');
+function scoringMatch(options = {}) {
+  const app = setup('referee'),
+    m = app.match('match-a');
+  Object.assign(m, {
+    checkedA: true,
+    checkedB: true,
+    status: 'pending',
+    scoreA: 0,
+    scoreB: 0,
+    gamesA: 0,
+    gamesB: 0,
+    gameHistory: [],
+    locked: false,
+    bracket: false,
+    nextMatchId: '',
+  });
+  app.save();
+  app.configureReferee(
+    m.id,
+    {
+      target: 15,
+      bestOf: 1,
+      servingTeam: 'A',
+      nearTeam: 'B',
+      firstA: 0,
+      firstB: 0,
+      players: { A: ['A1', 'A2'], B: ['B1', 'B2'] },
+      ...options,
+    },
+    m.revision,
+  );
+  return app;
+}
+test('pickleball video sequence uses 0-0-2, changes server without awarding the receiving side a point', () => {
+  const app = scoringMatch(),
+    mid = 'match-a';
+  assert.deepEqual(Pickleball.call(app.match(mid)), [0, 0, 2]);
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.deepEqual(Pickleball.call(app.match(mid)), [1, 0, 2]);
+  assert.equal(Pickleball.serverCourt(app.match(mid).refereeState), 'left');
+  assert.equal(Pickleball.receiver(app.match(mid).refereeState).player, 1);
+  app.refereeAction(mid, 'rally', { winner: 'B' });
+  assert.deepEqual(Pickleball.call(app.match(mid)), [0, 1, 1]);
+  app.refereeAction(mid, 'rally', { winner: 'B' });
+  app.refereeAction(mid, 'rally', { winner: 'B' });
+  assert.deepEqual(Pickleball.call(app.match(mid)), [2, 1, 1]);
+  const before = JSON.stringify(app.match(mid).refereeState.positions);
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.deepEqual(Pickleball.call(app.match(mid)), [2, 1, 2]);
+  assert.equal(JSON.stringify(app.match(mid).refereeState.positions), before);
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.deepEqual(Pickleball.call(app.match(mid)), [1, 2, 1]);
+  assert.equal(app.match(mid).refereeState.serverPlayer, 1);
+  assert.equal(app.match(mid).scoreA, 1);
+  assert.equal(app.match(mid).scoreB, 2);
+});
+test('pickleball setup respects the selected opening side, player and court end', () => {
+  const app = scoringMatch({ servingTeam: 'B', nearTeam: 'A', firstB: 1 });
+  const m = app.match('match-a');
+  assert.equal(m.refereeState.servingTeam, 'B');
+  assert.equal(m.refereeState.serverPlayer, 1);
+  assert.equal(m.refereeState.positions.B.right, 1);
+  app.refereeAction(m.id, 'rally', { winner: 'B' });
+  assert.equal(Pickleball.serverCourt(app.match(m.id).refereeState), 'left');
+  assert.equal(app.match(m.id).refereeState.nearTeam, 'A');
+});
+test('pickleball deciding-game end change preserves server identity and can be undone', () => {
+  for (const [target, threshold] of [
+    [11, 6],
+    [15, 8],
+    [21, 11],
+  ]) {
+    const app = scoringMatch({ target }),
+      mid = 'match-a';
+    for (let i = 0; i < threshold - 1; i++) app.refereeAction(mid, 'rally', { winner: 'A' });
+    assert.equal(app.match(mid).refereeState.nearTeam, 'B');
+    app.refereeAction(mid, 'rally', { winner: 'A' });
+    assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+    assert.equal(app.match(mid).refereeState.serverPlayer, 0);
+    assert.equal(app.match(mid).refereeState.serverNumber, 2);
+    app.refereeAction(mid, 'undo');
+    assert.equal(app.match(mid).scoreA, threshold - 1);
+    assert.equal(app.match(mid).refereeState.nearTeam, 'B');
+    app.refereeAction(mid, 'rally', { winner: 'A' });
+    app.refereeAction(mid, 'rally', { winner: 'A' });
+    assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+  }
+});
+test('pickleball pauses, timeouts, serve corrections and manual end changes are persisted and reversible', () => {
+  const app = scoringMatch(),
+    mid = 'match-a';
+  app.refereeAction(mid, 'pause', { team: 'A' });
+  assert.equal(app.match(mid).refereeState.timeouts.A, 1);
+  assert.throws(() => app.refereeAction(mid, 'rally', { winner: 'A' }), /恢復/);
+  app.refereeAction(mid, 'undo');
+  assert.equal(app.match(mid).refereeState.timeouts.A, 0);
+  assert.equal(app.match(mid).refereeState.paused, false);
+  for (let i = 0; i < 2; i++) {
+    app.refereeAction(mid, 'pause', { team: 'A' });
+    app.refereeAction(mid, 'resume');
+  }
+  assert.throws(() => app.refereeAction(mid, 'pause', { team: 'A' }), /兩次/);
+  app.refereeAction(mid, 'serve', { team: 'B', number: 2, player: 1, court: 'left' });
+  assert.equal(app.match(mid).refereeState.servingTeam, 'B');
+  assert.equal(Pickleball.serverCourt(app.match(mid).refereeState), 'left');
+  app.refereeAction(mid, 'swap-ends');
+  assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+  assert.equal(app.match(mid).refereeState.serverPlayer, 1);
+  app.load();
+  assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+  app.refereeAction(mid, 'undo');
+  assert.equal(app.match(mid).refereeState.nearTeam, 'B');
+});
+test('pickleball wins need a two-point lead and winning-rally undo removes the recorded game', () => {
+  const app = scoringMatch(),
+    mid = 'match-a';
+  app.match(mid).scoreA = 14;
+  app.match(mid).scoreB = 14;
+  app.save();
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.equal(app.match(mid).refereeState.gameWinner, '');
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.equal(app.match(mid).scoreA, 16);
+  assert.equal(app.match(mid).gamesA, 1);
+  assert.equal(app.match(mid).refereeState.matchWinner, 'A');
+  assert.equal(app.match(mid).gameHistory.length, 1);
+  assert.throws(() => app.refereeAction(mid, 'rally', { winner: 'A' }), /本局已結束/);
+  app.refereeAction(mid, 'undo');
+  assert.equal(app.match(mid).scoreA, 15);
+  assert.equal(app.match(mid).gamesA, 0);
+  assert.equal(app.match(mid).gameHistory.length, 0);
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.throws(() => app.finalize(mid, app.match(mid).revision), /核對/);
+  app.finalize(mid, app.match(mid).revision, true);
+  assert.equal(app.match(mid).locked, true);
+  assert.equal(app.match(mid).status, 'finished');
+  assert.throws(() => app.refereeAction(mid, 'undo'), /未鎖定/);
+});
+test('pickleball multiple games change ends between games and use a single deciding-game end change', () => {
+  const app = scoringMatch({ bestOf: 3 }),
+    mid = 'match-a';
+  for (let i = 0; i < 15; i++) app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.equal(app.match(mid).refereeState.nearTeam, 'B');
+  assert.equal(app.match(mid).refereeState.matchWinner, '');
+  app.refereeAction(mid, 'next-game');
+  assert.equal(app.match(mid).scoreA, 0);
+  assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+  assert.equal(app.match(mid).refereeState.serverNumber, 2);
+  assert.equal(app.match(mid).refereeState.servingTeam, 'B');
+  for (let i = 0; i < 15; i++) app.refereeAction(mid, 'rally', { winner: 'B' });
+  assert.equal(app.match(mid).gamesB, 1);
+  app.refereeAction(mid, 'next-game');
+  assert.equal(app.match(mid).refereeState.servingTeam, 'A');
+  assert.equal(app.match(mid).refereeState.nearTeam, 'B');
+  for (let i = 0; i < 8; i++) app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.equal(app.match(mid).refereeState.nearTeam, 'A');
+});
+test('pickleball authority, stale actions and locked results are checked before any scoring mutation', () => {
+  const app = scoringMatch(),
+    mid = 'match-a',
+    revision = app.match(mid).revision;
+  app.refereeAction(mid, 'rally', { winner: 'A' }, revision);
+  assert.throws(() => app.refereeAction(mid, 'rally', { winner: 'A' }, revision), /已更新/);
+  app.storage.setItem(SESSION, 'other');
+  assert.throws(() => app.refereeAction(mid, 'rally', { winner: 'A' }), /被指派/);
+  assert.throws(() => app.configureReferee(mid, {}), /被指派/);
+  app.storage.setItem(SESSION, 'referee');
+  assert.throws(() => app.refereeAction(mid, '__proto__'), /操作無效/);
+  app.match(mid).locked = true;
+  app.save();
+  assert.throws(() => app.refereeAction(mid, 'swap-ends'), /未鎖定/);
+});
+
+test('21-point pickleball games allow three team timeouts, while 11 and 15 allow two', () => {
+  for (const [target, limit] of [
+    [11, 2],
+    [15, 2],
+    [21, 3],
+  ]) {
+    const app = scoringMatch({ target }),
+      mid = 'match-a';
+    for (let i = 0; i < limit; i++) {
+      app.refereeAction(mid, 'pause', { team: 'B' });
+      app.refereeAction(mid, 'resume');
+    }
+    assert.equal(app.match(mid).refereeState.timeouts.B, limit);
+    assert.throws(() => app.refereeAction(mid, 'pause', { team: 'B' }), /暫停已用完/);
+  }
+});
+
+test('reopening a pickleball result removes the prior counted win before scoring the corrected final rally', () => {
+  const app = scoringMatch({ target: 11 }),
+    mid = 'match-a';
+  for (let i = 0; i < 11; i++) app.refereeAction(mid, 'rally', { winner: 'A' });
+  app.finalize(mid, app.match(mid).revision, true);
+  app.storage.setItem(SESSION, 'manager');
+  app.unlock(mid, '核對最後一球');
+  assert.equal(app.match(mid).gamesA, 0);
+  assert.equal(app.match(mid).gameHistory.length, 0);
+  app.storage.setItem(SESSION, 'referee');
+  app.setStatus(mid, 'started');
+  app.score(mid, 'A', -1);
+  app.refereeAction(mid, 'rally', { winner: 'A' });
+  assert.equal(app.match(mid).gamesA, 1);
+  assert.equal(app.match(mid).gameHistory.length, 1);
+  app.finalize(mid, app.match(mid).revision, true);
+  assert.equal(app.match(mid).locked, true);
+});
+
+test('quick batches generate distinct credentials, skip used numbers and leave referee matches for later', async () => {
+  const app = setup('admin'),
+    before = app.db.users.length;
+  const first = await app.createQuickStaffAccounts({
+    role: 'referee',
+    eventId: 'tennis',
+    count: 3,
+    prefix: 'testref',
+  });
+  assert.deepEqual(
+    first.map((r) => r.email),
+    [
+      'testref001@staff.bluecourt.test',
+      'testref002@staff.bluecourt.test',
+      'testref003@staff.bluecourt.test',
+    ],
+  );
+  assert.equal(new Set(first.map((r) => r.initialPassword)).size, 3);
+  assert.equal(app.current().id, 'admin');
+  for (const account of first) {
+    assert.equal(account.initialPassword.length, 18);
+    assert(!JSON.stringify(app.db).includes(account.initialPassword));
+    assert(!JSON.stringify(app.db.audit).includes(account.initialPassword));
+    assert(app.event('tennis').referees.includes(account.id));
+    assert(!app.db.matches.some((m) => m.refereeId === account.id));
+    assert(!account.hash && !account.salt);
+  }
+  const next = await app.createQuickStaffAccounts({
+    role: 'manager',
+    eventId: 'volleyball',
+    count: 2,
+    prefix: 'testref',
+  });
+  assert.deepEqual(
+    next.map((r) => r.email),
+    ['testref004@staff.bluecourt.test', 'testref005@staff.bluecourt.test'],
+  );
+  assert.equal(app.db.users.length, before + 5);
+  await app.login(first[0].email, first[0].initialPassword);
+  assert.equal(app.role(), 'referee');
+  assert.throws(() => app.score('match-a', 'A', 1), /被指派/);
+  await app.login(next[0].email, next[0].initialPassword);
+  assert.deepEqual(
+    app.managedEvents().map((e) => e.id),
+    ['volleyball'],
+  );
+});
+test('quick batch rejects invalid roles, counts, prefixes and events without creating accounts', async () => {
+  const app = setup('admin'),
+    before = JSON.stringify(app.db);
+  for (const data of [
+    { count: 0 },
+    { count: 51 },
+    { count: 1.5 },
+    { count: 'invalid' },
+    { role: 'admin' },
+    { prefix: 'a' },
+    { prefix: '=formula' },
+    { prefix: '含中文' },
+    { eventId: 'missing' },
+  ]) {
+    await assert.rejects(
+      app.createQuickStaffAccounts({ role: 'referee', eventId: 'tennis', count: 2, ...data }),
+    );
+    assert.equal(JSON.stringify(app.db), before);
+  }
+  for (const role of ['player', 'manager', 'referee'])
+    await assert.rejects(
+      setup(role).createQuickStaffAccounts({ role: 'manager', eventId: 'tennis', count: 2 }),
+      /只有系統管理員/,
+    );
 });
